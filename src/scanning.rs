@@ -301,6 +301,56 @@ pub mod scanning {
                                 }
                             }
                         }
+                        '0'..='9' => {
+                            let next: Option<char> = line.chars().nth(i + 1);
+                            match next {
+                                Some(n) => {
+                                    if n.is_digit(10) || n == '.' {
+                                        let mut num: String = String::from(c);
+                                        num.push(n);
+                                        i += 1;
+
+                                        while i < line.len() {
+                                            let n = line.chars().nth(i).unwrap();
+                                            if n.is_digit(10) {
+                                                num.push(n);
+                                            } else if n == '.' {
+                                                if num.contains(".") {
+                                                    return Err(anyhow!("Invalid number format!"));
+                                                } else {
+                                                    num.push(n);
+                                                }
+                                            } else {
+                                                break;
+                                            }
+                                            i += 1;
+                                        }
+
+                                        self.tokens.push(Token::new(
+                                            TokenType::Number,
+                                            Some(num.clone()),
+                                            format!("{}", num),
+                                            idx as u64,
+                                        ));
+
+                                        continue;
+                                    } else {
+                                        self.tokens.push(Token::new(
+                                            TokenType::Number,
+                                            Some(c.to_string()),
+                                            format!("{}", c),
+                                            idx as u64,
+                                        ))
+                                    }
+                                }
+                                None => self.tokens.push(Token::new(
+                                    TokenType::Number,
+                                    Some(c.to_string()),
+                                    format!("{}", c),
+                                    idx as u64,
+                                )),
+                            }
+                        }
                         _ => return Err(anyhow!("Unsupported character")),
                     }
                     i += 1;
