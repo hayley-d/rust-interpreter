@@ -644,7 +644,7 @@ pub mod scanning {
                 TokenType::And => write!(f, "AND"),
                 TokenType::Bang => write!(f, "BANG"),
                 TokenType::BangEqual => write!(f, "BANG_EQUAL"),
-                TokenType::Class => write!(f, "class"),
+                TokenType::Class => write!(f, "CLASS"),
                 TokenType::Comma => write!(f, "COMMA"),
                 TokenType::Comment => write!(f, "COMMENT"),
                 TokenType::Dot => write!(f, "DOT"),
