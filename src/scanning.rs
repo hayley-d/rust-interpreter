@@ -322,7 +322,7 @@ pub mod scanning {
                                     if n.is_digit(10) || n == '.' {
                                         let mut num: String = String::from(c);
                                         num.push(n);
-                                        i += 1;
+                                        i += 2;
 
                                         while i < line.len() {
                                             let n = line.chars().nth(i).unwrap();
