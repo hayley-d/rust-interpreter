@@ -390,13 +390,7 @@ pub mod scanning {
                                             } else if n == ' ' {
                                                 break;
                                             } else {
-                                                eprintln!(
-                                                    "{}",
-                                                    anyhow!(
-                                                        "[line {}] Error: Invalid identifier name",
-                                                        idx
-                                                    )
-                                                );
+                                                break;
                                             }
                                             i += 1;
                                         }
