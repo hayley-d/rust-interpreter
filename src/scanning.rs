@@ -21,20 +21,120 @@ pub mod scanning {
                 Ok(c) => c,
                 Err(_) => return Err(anyhow!("Unable to read file at {}", &self.source)),
             };
-            for (idx, line) in contents.lines().enumerate() {
+            for (idx, mut line) in contents.lines().enumerate() {
                 if line.is_empty() {
-                    self.tokens
-                        .push(Token::new(TokenType::Eof, None, String::new(), idx as u64));
+                    continue;
                 }
-                let line_parts: Vec<&str> = line.split_whitespace().collect();
-                for i in 0..line_parts.len() {
-                    let mut token_type: TokenType;
-                    let mut lexeme: String = String::new();
-                    let mut literal: Option<String> = None;
-                    while line_parts[i] != ";" {}
+
+                line = line.trim();
+
+                let mut start = 0;
+
+                for (i, c) in line.chars().enumerate() {
+                    match c {
+                        '(' => self.tokens.push(Token::new(
+                            TokenType::LeftParenthesis,
+                            None,
+                            format!("("),
+                            idx as u64,
+                        )),
+                        ')' => self.tokens.push(Token::new(
+                            TokenType::RightParenthesis,
+                            None,
+                            format!(")"),
+                            idx as u64,
+                        )),
+                        '{' => self.tokens.push(Token::new(
+                            TokenType::LeftBrace,
+                            None,
+                            format!("{{"),
+                            idx as u64,
+                        )),
+                        '}' => self.tokens.push(Token::new(
+                            TokenType::RightBrace,
+                            None,
+                            format!("}}"),
+                            idx as u64,
+                        )),
+                        '!' => self.tokens.push(Token::new(
+                            TokenType::Bang,
+                            None,
+                            format!("!"),
+                            idx as u64,
+                        )),
+                        ',' => self.tokens.push(Token::new(
+                            TokenType::Comma,
+                            None,
+                            format!(","),
+                            idx as u64,
+                        )),
+                        '.' => self.tokens.push(Token::new(
+                            TokenType::Dot,
+                            None,
+                            format!("."),
+                            idx as u64,
+                        )),
+                        ';' => self.tokens.push(Token::new(
+                            TokenType::Semicolon,
+                            None,
+                            format!(";"),
+                            idx as u64,
+                        )),
+                        /*'' => self.tokens.push(Token::new(
+                            TokenType::LeftParenthesis,
+                            None,
+                            format!("("),
+                            idx as u64,
+                        )),
+                        '(' => self.tokens.push(Token::new(
+                            TokenType::LeftParenthesis,
+                            None,
+                            format!("("),
+                            idx as u64,
+                        )),
+                        '(' => self.tokens.push(Token::new(
+                            TokenType::LeftParenthesis,
+                            None,
+                            format!("("),
+                            idx as u64,
+                        )),
+                        '(' => self.tokens.push(Token::new(
+                            TokenType::LeftParenthesis,
+                            None,
+                            format!("("),
+                            idx as u64,
+                        )),
+                        '(' => self.tokens.push(Token::new(
+                            TokenType::LeftParenthesis,
+                            None,
+                            format!("("),
+                            idx as u64,
+                        )),
+                        '(' => self.tokens.push(Token::new(
+                            TokenType::LeftParenthesis,
+                            None,
+                            format!("("),
+                            idx as u64,
+                        )),
+                        '(' => self.tokens.push(Token::new(
+                            TokenType::LeftParenthesis,
+                            None,
+                            format!("("),
+                            idx as u64,
+                        )),*/
+                        _ => (),
+                    }
                 }
             }
-            return Ok(Vec::new());
+
+            self.tokens.push(Token::new(
+                TokenType::Eof,
+                None,
+                String::new(),
+                contents.lines().count() as u64,
+            ));
+
+            return Ok(self.tokens);
         }
     }
 
