@@ -174,7 +174,7 @@ pub mod scanning {
                             }
                         }
                         '*' => {
-                            let other_c: Option<char> = line.chars().nth(i + 1);
+                            /*let other_c: Option<char> = line.chars().nth(i + 1);
                             if other_c == Some('=') {
                                 // Special case
                                 i += 1;
@@ -184,14 +184,14 @@ pub mod scanning {
                                     format!("*="),
                                     idx as u64,
                                 ))
-                            } else {
-                                self.tokens.push(Token::new(
-                                    TokenType::Star,
-                                    None,
-                                    format!("*"),
-                                    idx as u64,
-                                ))
-                            }
+                            } else {*/
+                            self.tokens.push(Token::new(
+                                TokenType::Star,
+                                None,
+                                format!("*"),
+                                idx as u64,
+                            ))
+                            //}
                         }
                         '/' => {
                             let other_c: Option<char> = line.chars().nth(i + 1);
@@ -352,7 +352,7 @@ pub mod scanning {
                                         self.tokens.push(Token::new(
                                             TokenType::Number,
                                             Some(c.to_string()),
-                                            format!("{}", c),
+                                            format!("{}.0", c),
                                             idx as u64,
                                         ))
                                     }
@@ -496,6 +496,17 @@ pub mod scanning {
                     match &self.literal {
                         Some(l) => l,
                         None => "",
+                    }
+                )
+            } else if self.token_type == TokenType::Number {
+                write!(
+                    f,
+                    "{} {} {:.1}",
+                    self.token_type,
+                    self.lexeme,
+                    match &self.literal {
+                        Some(l) => l.parse::<f64>().unwrap(),
+                        None => 0.0,
                     }
                 )
             } else {
