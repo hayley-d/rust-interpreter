@@ -24,7 +24,10 @@ pub mod scanning {
             };
 
             let mut multiline_comment: bool = false;
+            let mut comment_line: u64 = 0;
             let mut open_string: bool = false;
+            let mut string_line: u64 = 0;
+
             let mut string_buffer: String = String::new();
 
             for (idx, mut line) in contents.lines().enumerate() {
@@ -46,7 +49,7 @@ pub mod scanning {
                         open_string = false;
 
                         self.tokens.push(Token::new(
-                            TokenType::Equal,
+                            TokenType::String,
                             Some(string_buffer.clone()),
                             format!("\"{}\"", string_buffer),
                             idx as u64,
@@ -199,6 +202,7 @@ pub mod scanning {
                             if other_c == Some('*') {
                                 // multiline comment /*
                                 multiline_comment = true;
+                                comment_line = idx as u64;
                                 if line.contains("*/") {
                                     i = line.find("*/").unwrap() + 2;
                                     multiline_comment = false;
@@ -284,18 +288,27 @@ pub mod scanning {
                                 // start of new string
                                 if line[i + 1..].contains('"') {
                                     // string ends on same line
-                                    let end_string = line[i + 1..].find('"').unwrap();
-                                    let string_lit: String =
-                                        line[i + 1..end_string - 1].to_string();
+                                    let mut string_literal: String = String::new();
+                                    i += 1;
+                                    while i < line.len() {
+                                        let n = line.chars().nth(i).unwrap();
+                                        if n == '"' {
+                                            break;
+                                        } else {
+                                            string_literal.push(n);
+                                        }
+                                        i += 1;
+                                    }
+
                                     self.tokens.push(Token::new(
-                                        TokenType::Equal,
-                                        Some(string_lit.clone()),
-                                        format!("\"{}\"", string_lit),
+                                        TokenType::String,
+                                        Some(string_literal.clone()),
+                                        format!("\"{}\"", string_literal),
                                         idx as u64,
                                     ));
-                                    i = end_string;
                                 } else {
                                     // multi-line string
+                                    string_line = idx as u64;
                                     open_string = true;
                                     string_buffer.push_str(&line[i + 1..]);
                                     break;
@@ -364,11 +377,22 @@ pub mod scanning {
             }
 
             if multiline_comment {
-                return Err(anyhow!("Unterminated multi-line comment!"));
+                eprintln!(
+                    "{}",
+                    anyhow!(
+                        "[line {}] Error: Unterminated multi-line comment.",
+                        comment_line + 1
+                    )
+                );
+                error_count += 1;
             }
 
             if open_string {
-                return Err(anyhow!("Unterminated string!"));
+                eprintln!(
+                    "{}",
+                    anyhow!("[line {}] Error: Unterminated string.", string_line + 1)
+                );
+                error_count += 1;
             }
 
             self.tokens.push(Token::new(

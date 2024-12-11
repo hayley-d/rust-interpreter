@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 use std::{env, process};
 
-use codecrafters_interpreter::scanning::scanning::Scanner;
+use rust_interpreter::scanning::scanning::Scanner;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
