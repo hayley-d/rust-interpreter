@@ -16,15 +16,32 @@ pub mod scanning {
             };
         }
 
-        pub fn scan_tokens() -> Vec<Token> {
-            return Vec::new();
+        pub fn scan_tokens(&mut self) -> Result<Vec<Token>> {
+            let contents = match fs::read_to_string(&self.source) {
+                Ok(c) => c,
+                Err(_) => return Err(anyhow!("Unable to read file at {}", &self.source)),
+            };
+            for (idx, line) in contents.lines().enumerate() {
+                if line.is_empty() {
+                    self.tokens
+                        .push(Token::new(TokenType::Eof, None, String::new(), idx as u64));
+                }
+                let line_parts: Vec<&str> = line.split_whitespace().collect();
+                for i in 0..line_parts.len() {
+                    let mut token_type: TokenType;
+                    let mut lexeme: String = String::new();
+                    let mut literal: Option<String> = None;
+                    while line_parts[i] != ";" {}
+                }
+            }
+            return Ok(Vec::new());
         }
     }
 
     pub struct Token {
         token_type: TokenType,
-        literal: String,
         lexeme: String,
+        literal: Option<String>,
         line: u64,
     }
 
@@ -77,9 +94,34 @@ pub mod scanning {
         While,
     }
 
+    impl Token {
+        pub fn new(
+            token_type: TokenType,
+            literal: Option<String>,
+            lexeme: String,
+            line: u64,
+        ) -> Self {
+            return Token {
+                token_type,
+                lexeme,
+                literal,
+                line,
+            };
+        }
+    }
     impl Display for Token {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "{} {} {}", self.token_type, self.lexeme, self.literal)
+            let nil: String = String::from("null");
+            write!(
+                f,
+                "{} {} {}",
+                self.token_type,
+                self.lexeme,
+                match &self.literal {
+                    Some(l) => l,
+                    None => &nil,
+                }
+            )
         }
     }
 
