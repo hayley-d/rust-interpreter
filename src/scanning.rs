@@ -21,9 +21,17 @@ pub mod scanning {
                 Ok(c) => c,
                 Err(_) => return Err(anyhow!("Unable to read file at {}", &self.source)),
             };
+
+            let mut multiline_comment: bool = false;
+
             for (idx, mut line) in contents.lines().enumerate() {
-                if line.is_empty() {
+                if line.is_empty() || (multiline_comment && !line.contains("*/")) {
                     continue;
+                } else if multiline_comment && line.contains("*/") {
+                    // unwrap is safe as we know */ is in the line
+                    let index = line.find("*/").unwrap() + 1;
+                    line = &line[index + 1..];
+                    multiline_comment = false;
                 }
 
                 line = line.trim();
@@ -124,7 +132,8 @@ pub mod scanning {
                             }
                         }
                         '*' => {
-                            if line.chars().nth(i + 1) == Some('=') {
+                            let other_c: Option<char> = line.chars().nth(i + 1);
+                            if other_c == Some('=') {
                                 // Special case
                             } else {
                                 self.tokens.push(Token::new(
@@ -139,23 +148,26 @@ pub mod scanning {
                             let other_c: Option<char> = line.chars().nth(i + 1);
                             if other_c == Some('/') {
                                 // Comment line //
-                                i += 1;
-                                self.tokens.push(Token::new(
-                                    TokenType::Comment,
-                                    Some(
-                                        line.chars().collect::<Vec<char>>()[i + 1..]
-                                            .iter()
-                                            .collect::<String>(),
-                                    ),
-                                    format!("//"),
-                                    idx as u64,
-                                ))
+                                break;
                             }
                             if other_c == Some('*') {
                                 // multiline comment /*
+                                multiline_comment = true;
+                                if line.contains("*/") {
+                                    i = line.find("*/").unwrap() + 2;
+                                    continue;
+                                } else {
+                                    break;
+                                }
                             }
                             if other_c == Some('=') {
                                 // divide equals /=
+                                /*self.tokens.push(Token::new(
+                                    TokenType::SlashEquals,
+                                    None,
+                                    format!("/"),
+                                    idx as u64,
+                                ))*/
                             } else {
                                 self.tokens.push(Token::new(
                                     TokenType::Slash,
