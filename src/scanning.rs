@@ -397,7 +397,7 @@ pub mod scanning {
 
                                         if KEYWORDS.iter().any(|&k| k == identifier) {
                                             let token_type = TokenType::get_keyword(&identifier);
-                                            let token_str = token_type.to_string();
+                                            let token_str = token_type.print();
                                             self.tokens.push(Token::new(
                                                 token_type, None, token_str, idx as u64,
                                             ));
@@ -612,6 +612,28 @@ pub mod scanning {
                 "var" => TokenType::Var,
                 "while" => TokenType::While,
                 _ => TokenType::Nil,
+            }
+        }
+
+        pub fn print(&self) -> String {
+            match self {
+                TokenType::And => String::from("and"),
+                TokenType::Class => String::from("class"),
+                TokenType::Else => String::from("else"),
+                TokenType::False => String::from("false"),
+                TokenType::For => String::from("for"),
+                TokenType::Fun => String::from("fun"),
+                TokenType::If => String::from("if"),
+                TokenType::Nil => String::from("nil"),
+                TokenType::Or => String::from("or"),
+                TokenType::Print => String::from("print"),
+                TokenType::Return => String::from("return"),
+                TokenType::Super => String::from("super"),
+                TokenType::This => String::from("this"),
+                TokenType::True => String::from("true"),
+                TokenType::Var => String::from("var"),
+                TokenType::While => String::from("while"),
+                _ => String::new(),
             }
         }
     }
