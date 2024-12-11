@@ -415,7 +415,7 @@ pub mod scanning {
                                     } else {
                                         self.tokens.push(Token::new(
                                             TokenType::Identifier,
-                                            Some(c.to_string()),
+                                            None,
                                             format!("{}", c),
                                             idx as u64,
                                         ))
@@ -654,7 +654,7 @@ pub mod scanning {
                 TokenType::EqualEqual => write!(f, "EQUAL_EQUAL"),
                 TokenType::False => write!(f, "FALSE"),
                 TokenType::For => write!(f, "FOR"),
-                TokenType::Fun => write!(f, "fun"),
+                TokenType::Fun => write!(f, "FUN"),
                 TokenType::Greater => write!(f, "GREATER"),
                 TokenType::GreaterEqual => write!(f, "GREATER_EQUAL"),
                 TokenType::Identifier => write!(f, "IDENTIFIER"),
