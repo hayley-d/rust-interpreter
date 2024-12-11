@@ -36,8 +36,6 @@ pub mod scanning {
 
                 line = line.trim();
 
-                let mut start = 0;
-
                 let mut i = 0;
 
                 while i < line.chars().count() {
@@ -45,6 +43,7 @@ pub mod scanning {
                     let c = line.chars().nth(i).unwrap();
 
                     match c {
+                        '\t' | '\r' | ' ' => (),
                         '(' => self.tokens.push(Token::new(
                             TokenType::LeftParenthesis,
                             None,
@@ -110,6 +109,13 @@ pub mod scanning {
                         '+' => {
                             if line.chars().nth(i + 1) == Some('=') {
                                 // Special case
+                                i += 1;
+                                self.tokens.push(Token::new(
+                                    TokenType::PlusEqual,
+                                    None,
+                                    format!("+="),
+                                    idx as u64,
+                                ))
                             } else {
                                 self.tokens.push(Token::new(
                                     TokenType::Plus,
@@ -122,6 +128,13 @@ pub mod scanning {
                         '-' => {
                             if line.chars().nth(i + 1) == Some('=') {
                                 // Special case
+                                i += 1;
+                                self.tokens.push(Token::new(
+                                    TokenType::MinusEqual,
+                                    None,
+                                    format!("-="),
+                                    idx as u64,
+                                ))
                             } else {
                                 self.tokens.push(Token::new(
                                     TokenType::Minus,
@@ -135,6 +148,13 @@ pub mod scanning {
                             let other_c: Option<char> = line.chars().nth(i + 1);
                             if other_c == Some('=') {
                                 // Special case
+                                i += 1;
+                                self.tokens.push(Token::new(
+                                    TokenType::StarEqual,
+                                    None,
+                                    format!("*="),
+                                    idx as u64,
+                                ))
                             } else {
                                 self.tokens.push(Token::new(
                                     TokenType::Star,
@@ -155,6 +175,7 @@ pub mod scanning {
                                 multiline_comment = true;
                                 if line.contains("*/") {
                                     i = line.find("*/").unwrap() + 2;
+                                    multiline_comment = false;
                                     continue;
                                 } else {
                                     break;
@@ -162,12 +183,13 @@ pub mod scanning {
                             }
                             if other_c == Some('=') {
                                 // divide equals /=
-                                /*self.tokens.push(Token::new(
-                                    TokenType::SlashEquals,
+                                i += 1;
+                                self.tokens.push(Token::new(
+                                    TokenType::SlashEqual,
                                     None,
-                                    format!("/"),
+                                    format!("/="),
                                     idx as u64,
-                                ))*/
+                                ))
                             } else {
                                 self.tokens.push(Token::new(
                                     TokenType::Slash,
@@ -262,6 +284,7 @@ pub mod scanning {
         }
     }
 
+    #[derive(PartialEq, Eq)]
     pub enum TokenType {
         And,
         Bang,
@@ -286,17 +309,21 @@ pub mod scanning {
         Less,
         LessEqual,
         Minus,
+        MinusEqual,
         Nil,
         Number,
         Or,
         Plus,
+        PlusEqual,
         Print,
         Return,
         RightBrace,
         RightParenthesis,
         Semicolon,
         Slash,
+        SlashEqual,
         Star,
+        StarEqual,
         String,
         Super,
         This,
@@ -322,17 +349,30 @@ pub mod scanning {
     }
     impl Display for Token {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            let nil: String = String::from("null");
-            write!(
-                f,
-                "{} {} {}",
-                self.token_type,
-                self.lexeme,
-                match &self.literal {
-                    Some(l) => l,
-                    None => &nil,
-                }
-            )
+            if self.token_type == TokenType::String {
+                write!(
+                    f,
+                    "{} \"{}\" {}",
+                    self.token_type,
+                    self.lexeme,
+                    match &self.literal {
+                        Some(l) => l,
+                        None => "",
+                    }
+                )
+            } else {
+                let nil: String = String::from("null");
+                write!(
+                    f,
+                    "{} {} {}",
+                    self.token_type,
+                    self.lexeme,
+                    match &self.literal {
+                        Some(l) => l,
+                        None => &nil,
+                    }
+                )
+            }
         }
     }
 
@@ -340,45 +380,49 @@ pub mod scanning {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
                 TokenType::And => write!(f, "AND"),
-                TokenType::Bang => write!(f, "!"),
+                TokenType::Bang => write!(f, "BANG"),
                 TokenType::BangEqual => write!(f, "!="),
                 TokenType::Class => write!(f, "class"),
-                TokenType::Comma => write!(f, ","),
+                TokenType::Comma => write!(f, "COMMA"),
                 TokenType::Comment => write!(f, "Comment"),
-                TokenType::Dot => write!(f, "."),
+                TokenType::Dot => write!(f, "DOT"),
                 TokenType::Else => write!(f, "else"),
                 TokenType::Eof => write!(f, "EOF"),
-                TokenType::Equal => write!(f, "="),
-                TokenType::EqualEqual => write!(f, "=="),
-                TokenType::False => write!(f, "false"),
-                TokenType::For => write!(f, "for"),
+                TokenType::Equal => write!(f, "EQUAL"),
+                TokenType::EqualEqual => write!(f, "LOGIC_EQUAL"),
+                TokenType::False => write!(f, "FALSE"),
+                TokenType::For => write!(f, "FOR"),
                 TokenType::Fun => write!(f, "fun"),
-                TokenType::Greater => write!(f, ">"),
+                TokenType::Greater => write!(f, "GREATER"),
                 TokenType::GreaterEqual => write!(f, ">="),
-                TokenType::Identifier => write!(f, "identifier"),
-                TokenType::If => write!(f, "if"),
-                TokenType::LeftBrace => write!(f, "{{"),
-                TokenType::LeftParenthesis => write!(f, "("),
-                TokenType::Less => write!(f, "<"),
+                TokenType::Identifier => write!(f, "IDENTIFIER"),
+                TokenType::If => write!(f, "IF"),
+                TokenType::LeftBrace => write!(f, "LEFT_BRACE"),
+                TokenType::LeftParenthesis => write!(f, "LEFT_PAREN"),
+                TokenType::Less => write!(f, "LESS"),
                 TokenType::LessEqual => write!(f, "<="),
-                TokenType::Minus => write!(f, "-"),
-                TokenType::Nil => write!(f, "Nil"),
-                TokenType::Number => write!(f, "Number"),
+                TokenType::Minus => write!(f, "MINUS"),
+                TokenType::MinusEqual => write!(f, "-="),
+                TokenType::Nil => write!(f, "NIL"),
+                TokenType::Number => write!(f, "NUMBER"),
                 TokenType::Or => write!(f, "OR"),
-                TokenType::Plus => write!(f, "+"),
-                TokenType::Print => write!(f, "print"),
-                TokenType::Return => write!(f, "return"),
-                TokenType::RightBrace => write!(f, "}}"),
-                TokenType::RightParenthesis => write!(f, ")"),
-                TokenType::Semicolon => write!(f, ";"),
-                TokenType::Slash => write!(f, "/"),
-                TokenType::Star => write!(f, "*"),
-                TokenType::String => write!(f, "string"),
-                TokenType::Super => write!(f, "super"),
-                TokenType::This => write!(f, "this"),
-                TokenType::True => write!(f, "true"),
-                TokenType::Var => write!(f, "var"),
-                TokenType::While => write!(f, "while"),
+                TokenType::Plus => write!(f, "PLUS"),
+                TokenType::PlusEqual => write!(f, "+="),
+                TokenType::Print => write!(f, "PRINT"),
+                TokenType::Return => write!(f, "RETURN"),
+                TokenType::RightBrace => write!(f, "RIGHT_BRACE"),
+                TokenType::RightParenthesis => write!(f, "RIGHT_PAREN"),
+                TokenType::Semicolon => write!(f, "SEMICOLON"),
+                TokenType::Slash => write!(f, "SLASH"),
+                TokenType::SlashEqual => write!(f, "/="),
+                TokenType::Star => write!(f, "STAR"),
+                TokenType::StarEqual => write!(f, "*="),
+                TokenType::String => write!(f, "STRING"),
+                TokenType::Super => write!(f, "SUPER"),
+                TokenType::This => write!(f, "THIS"),
+                TokenType::True => write!(f, "TRUE"),
+                TokenType::Var => write!(f, "VAR"),
+                TokenType::While => write!(f, "WHILE"),
             }
         }
     }
