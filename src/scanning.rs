@@ -5,7 +5,7 @@ pub mod scanning {
 
     pub struct Scanner {
         source: String,
-        tokens: Vec<Token>,
+        pub tokens: Vec<Token>,
     }
 
     impl Scanner {
@@ -16,7 +16,8 @@ pub mod scanning {
             };
         }
 
-        pub fn scan_tokens(&mut self) -> Result<&Vec<Token>> {
+        pub fn scan_tokens(&mut self) -> Result<u64> {
+            let mut error_count = 0;
             let contents = match fs::read_to_string(&self.source) {
                 Ok(c) => c,
                 Err(_) => return Err(anyhow!("Unable to read file at {}", &self.source)),
@@ -351,7 +352,12 @@ pub mod scanning {
                                 )),
                             }
                         }
-                        _ => return Err(anyhow!("Unsupported character")),
+                        _ => {
+                            let error =
+                                anyhow!("[line {}] Error: Unexpected character: {}", idx + 1, c);
+                            eprintln!("{error}");
+                            error_count += 1;
+                        }
                     }
                     i += 1;
                 }
@@ -372,10 +378,11 @@ pub mod scanning {
                 contents.lines().count() as u64,
             ));
 
-            return Ok(&self.tokens);
+            return Ok(error_count);
         }
     }
 
+    #[allow(dead_code)]
     #[derive(Debug)]
     pub struct Token {
         token_type: TokenType,
@@ -537,7 +544,6 @@ pub mod scanning {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use anyhow::Result;
 
         fn token_to_string(token: &Token) -> String {
             format!(
@@ -549,15 +555,16 @@ pub mod scanning {
         #[test]
         fn test_scanner_empty_file() {
             let mut scanner = Scanner::new("static/test/empty_file.txt".to_string());
-            let tokens = scanner.scan_tokens().unwrap();
-            assert_eq!(tokens.len(), 1);
-            assert_eq!(tokens[0].token_type, TokenType::Eof);
+            let errors = scanner.scan_tokens().unwrap();
+            assert_eq!(errors, 0);
+            assert_eq!(scanner.tokens.len(), 1);
+            assert_eq!(scanner.tokens[0].token_type, TokenType::Eof);
         }
 
         #[test]
         fn test_scanner_single_line_tokens() {
             let mut scanner = Scanner::new("static/test/single_line.txt".to_string());
-            let tokens = scanner.scan_tokens().unwrap();
+            let _ = scanner.scan_tokens().unwrap();
 
             let expected = vec![
                 TokenType::LeftParenthesis,
@@ -570,8 +577,8 @@ pub mod scanning {
                 TokenType::Eof,
             ];
 
-            assert_eq!(tokens.len(), expected.len());
-            for (i, token) in tokens.iter().enumerate() {
+            assert_eq!(scanner.tokens.len(), expected.len());
+            for (i, token) in scanner.tokens.iter().enumerate() {
                 assert_eq!(token.token_type, expected[i]);
             }
         }
@@ -579,16 +586,19 @@ pub mod scanning {
         #[test]
         fn test_scanner_multiline_comment() {
             let mut scanner = Scanner::new("static/test/multiline_comment.txt".to_string());
-            let tokens = scanner.scan_tokens().unwrap();
+            let _ = scanner.scan_tokens().unwrap();
 
-            assert!(tokens.iter().all(|t| t.token_type != TokenType::Comment));
-            assert_eq!(tokens.last().unwrap().token_type, TokenType::Eof);
+            assert!(scanner
+                .tokens
+                .iter()
+                .all(|t| t.token_type != TokenType::Comment));
+            assert_eq!(scanner.tokens.last().unwrap().token_type, TokenType::Eof);
         }
 
         #[test]
         fn test_scanner_operators() {
             let mut scanner = Scanner::new("static/test/operators.txt".to_string());
-            let tokens = scanner.scan_tokens().unwrap();
+            let _ = scanner.scan_tokens().unwrap();
 
             let expected = vec![
                 TokenType::Bang,
@@ -610,8 +620,8 @@ pub mod scanning {
                 TokenType::Eof,
             ];
 
-            assert_eq!(tokens.len(), expected.len());
-            for (i, token) in tokens.iter().enumerate() {
+            assert_eq!(scanner.tokens.len(), expected.len());
+            for (i, token) in scanner.tokens.iter().enumerate() {
                 assert_eq!(
                     token.token_type,
                     expected[i],
@@ -625,8 +635,8 @@ pub mod scanning {
         #[test]
         fn test_scanner_invalid_character() {
             let mut scanner = Scanner::new("static/test/invalid_character.txt".to_string());
-            let result = scanner.scan_tokens();
-            assert!(result.is_err());
+            let errors = scanner.scan_tokens().unwrap();
+            assert_ne!(errors, 0);
         }
 
         /*#[test]
