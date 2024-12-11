@@ -16,7 +16,7 @@ pub mod scanning {
             };
         }
 
-        pub fn scan_tokens(&mut self) -> Result<Vec<Token>> {
+        pub fn scan_tokens(&mut self) -> Result<&Vec<Token>> {
             let contents = match fs::read_to_string(&self.source) {
                 Ok(c) => c,
                 Err(_) => return Err(anyhow!("Unable to read file at {}", &self.source)),
@@ -266,10 +266,11 @@ pub mod scanning {
                 contents.lines().count() as u64,
             ));
 
-            return Ok(Vec::new());
+            return Ok(&self.tokens);
         }
     }
 
+    #[derive(Debug)]
     pub struct Token {
         token_type: TokenType,
         lexeme: String,
@@ -284,7 +285,7 @@ pub mod scanning {
         }
     }
 
-    #[derive(PartialEq, Eq)]
+    #[derive(PartialEq, Eq, Debug)]
     pub enum TokenType {
         And,
         Bang,
@@ -425,5 +426,110 @@ pub mod scanning {
                 TokenType::While => write!(f, "WHILE"),
             }
         }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use anyhow::Result;
+
+        fn token_to_string(token: &Token) -> String {
+            format!(
+                "{{type: {}, lexeme: '{}', literal: {:?}, line: {}}}",
+                token.token_type, token.lexeme, token.literal, token.line
+            )
+        }
+
+        #[test]
+        fn test_scanner_empty_file() {
+            let mut scanner = Scanner::new("static/test/empty_file.txt".to_string());
+            let tokens = scanner.scan_tokens().unwrap();
+            assert_eq!(tokens.len(), 1);
+            assert_eq!(tokens[0].token_type, TokenType::Eof);
+        }
+
+        #[test]
+        fn test_scanner_single_line_tokens() {
+            let mut scanner = Scanner::new("static/test/single_line.txt".to_string());
+            let tokens = scanner.scan_tokens().unwrap();
+
+            let expected = vec![
+                TokenType::LeftParenthesis,
+                TokenType::RightParenthesis,
+                TokenType::LeftBrace,
+                TokenType::RightBrace,
+                TokenType::Comma,
+                TokenType::Dot,
+                TokenType::Semicolon,
+                TokenType::Eof,
+            ];
+
+            assert_eq!(tokens.len(), expected.len());
+            for (i, token) in tokens.iter().enumerate() {
+                assert_eq!(token.token_type, expected[i]);
+            }
+        }
+
+        #[test]
+        fn test_scanner_multiline_comment() {
+            let mut scanner = Scanner::new("static/test/multiline_comment.txt".to_string());
+            let tokens = scanner.scan_tokens().unwrap();
+
+            assert!(tokens.iter().all(|t| t.token_type != TokenType::Comment));
+            assert_eq!(tokens.last().unwrap().token_type, TokenType::Eof);
+        }
+
+        #[test]
+        fn test_scanner_operators() {
+            let mut scanner = Scanner::new("static/test/operators.txt".to_string());
+            let tokens = scanner.scan_tokens().unwrap();
+
+            let expected = vec![
+                TokenType::Bang,
+                TokenType::BangEqual,
+                TokenType::Equal,
+                TokenType::EqualEqual,
+                TokenType::Greater,
+                TokenType::GreaterEqual,
+                TokenType::Less,
+                TokenType::LessEqual,
+                TokenType::Plus,
+                TokenType::PlusEqual,
+                TokenType::Minus,
+                TokenType::MinusEqual,
+                TokenType::Star,
+                TokenType::StarEqual,
+                TokenType::Slash,
+                TokenType::SlashEqual,
+                TokenType::Eof,
+            ];
+
+            assert_eq!(tokens.len(), expected.len());
+            for (i, token) in tokens.iter().enumerate() {
+                assert_eq!(
+                    token.token_type,
+                    expected[i],
+                    "Unexpected token at index {}: {}",
+                    i,
+                    token_to_string(token)
+                );
+            }
+        }
+
+        #[test]
+        fn test_scanner_invalid_character() {
+            let mut scanner = Scanner::new("static/test/invalid_character.txt".to_string());
+            let result = scanner.scan_tokens();
+            assert!(result.is_err());
+        }
+
+        /*#[test]
+        fn test_scanner_realistic_code() {
+            let mut scanner = Scanner::new("static/test/realistic_code.txt".to_string());
+            let tokens = scanner.scan_tokens().unwrap();
+
+            assert!(tokens.len() > 1);
+            assert_eq!(tokens.last().unwrap().token_type, TokenType::Eof);
+        }*/
     }
 }
