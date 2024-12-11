@@ -23,15 +23,40 @@ pub mod scanning {
             };
 
             let mut multiline_comment: bool = false;
+            let mut open_string: bool = false;
+            let mut string_buffer: String = String::new();
 
             for (idx, mut line) in contents.lines().enumerate() {
-                if line.is_empty() || (multiline_comment && !line.contains("*/")) {
+                if line.is_empty() && !open_string || (multiline_comment && !line.contains("*/")) {
                     continue;
                 } else if multiline_comment && line.contains("*/") {
                     // unwrap is safe as we know */ is in the line
                     let index = line.find("*/").unwrap() + 1;
                     line = &line[index + 1..];
                     multiline_comment = false;
+                } else if line.is_empty() && open_string {
+                    string_buffer.push_str("\n");
+                    continue;
+                } else if open_string {
+                    if line.contains("\"") {
+                        let index = line.find("\"").unwrap() - 1;
+                        string_buffer.push_str(&line[..index]);
+                        line = &line[index + 2..];
+                        open_string = false;
+
+                        self.tokens.push(Token::new(
+                            TokenType::Equal,
+                            Some(string_buffer.clone()),
+                            format!("\"{}\"", string_buffer),
+                            idx as u64,
+                        ));
+
+                        // reset
+                        string_buffer = String::new();
+                    } else {
+                        string_buffer.push_str(line);
+                        continue;
+                    }
                 }
 
                 line = line.trim();
@@ -253,10 +278,41 @@ pub mod scanning {
                                 ))
                             }
                         }
+                        '"' => {
+                            if !open_string {
+                                // start of new string
+                                if line[i + 1..].contains('"') {
+                                    // string ends on same line
+                                    let end_string = line[i + 1..].find('"').unwrap();
+                                    let string_lit: String =
+                                        line[i + 1..end_string - 1].to_string();
+                                    self.tokens.push(Token::new(
+                                        TokenType::Equal,
+                                        Some(string_lit.clone()),
+                                        format!("\"{}\"", string_lit),
+                                        idx as u64,
+                                    ));
+                                    i = end_string;
+                                } else {
+                                    // multi-line string
+                                    open_string = true;
+                                    string_buffer.push_str(&line[i + 1..]);
+                                    break;
+                                }
+                            }
+                        }
                         _ => return Err(anyhow!("Unsupported character")),
                     }
                     i += 1;
                 }
+            }
+
+            if multiline_comment {
+                return Err(anyhow!("Unterminated multi-line comment!"));
+            }
+
+            if open_string {
+                return Err(anyhow!("Unterminated string!"));
             }
 
             self.tokens.push(Token::new(
@@ -353,7 +409,7 @@ pub mod scanning {
             if self.token_type == TokenType::String {
                 write!(
                     f,
-                    "{} \"{}\" {}",
+                    "{} {} {}",
                     self.token_type,
                     self.lexeme,
                     match &self.literal {
