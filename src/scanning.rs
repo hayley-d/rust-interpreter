@@ -359,7 +359,7 @@ pub mod scanning {
                                         self.tokens.push(Token::new(
                                             TokenType::Number,
                                             Some(c.to_string()),
-                                            format!("{}.0", c),
+                                            format!("{}", c),
                                             idx as u64,
                                         ))
                                     }
@@ -401,21 +401,28 @@ pub mod scanning {
                                             i += 1;
                                         }
 
-                                        if KEYWORDS.iter().any(|&k| k == identifier) {}
-
-                                        self.tokens.push(Token::new(
-                                            TokenType::Identifier,
-                                            Some(identifier.clone()),
-                                            format!("{}", identifier),
-                                            idx as u64,
-                                        ));
+                                        if KEYWORDS.iter().any(|&k| k == identifier) {
+                                            let token_type = TokenType::get_keyword(&identifier);
+                                            let token_str = token_type.to_string();
+                                            self.tokens.push(Token::new(
+                                                token_type, None, token_str, idx as u64,
+                                            ));
+                                            continue;
+                                        } else {
+                                            self.tokens.push(Token::new(
+                                                TokenType::Identifier,
+                                                None,
+                                                format!("{}", identifier),
+                                                idx as u64,
+                                            ));
+                                        }
 
                                         continue;
                                     } else {
                                         self.tokens.push(Token::new(
-                                            TokenType::Number,
+                                            TokenType::Identifier,
                                             Some(c.to_string()),
-                                            format!("{}.0", c),
+                                            format!("{}", c),
                                             idx as u64,
                                         ))
                                     }
