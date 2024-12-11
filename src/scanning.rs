@@ -340,9 +340,11 @@ pub mod scanning {
                                             i += 1;
                                         }
 
+                                        let num_form = num.parse::<f64>().unwrap();
+
                                         self.tokens.push(Token::new(
                                             TokenType::Number,
-                                            Some(num.clone()),
+                                            Some(num_form.to_string()),
                                             format!("{}", num),
                                             idx as u64,
                                         ));
@@ -499,16 +501,19 @@ pub mod scanning {
                     }
                 )
             } else if self.token_type == TokenType::Number {
-                write!(
-                    f,
-                    "{} {} {:.1}",
-                    self.token_type,
-                    self.lexeme,
-                    match &self.literal {
-                        Some(l) => l.parse::<f64>().unwrap(),
-                        None => 0.0,
-                    }
-                )
+                let num: String = self.literal.clone().unwrap();
+
+                if num.contains(".") {
+                    write!(f, "{} {} {}", self.token_type, self.lexeme, num)
+                } else {
+                    write!(
+                        f,
+                        "{} {} {:.1}",
+                        self.token_type,
+                        self.lexeme,
+                        &num.clone().parse::<f64>().unwrap(),
+                    )
+                }
             } else {
                 let nil: String = String::from("null");
                 write!(
