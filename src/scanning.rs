@@ -30,7 +30,12 @@ pub mod scanning {
 
                 let mut start = 0;
 
-                for (i, c) in line.chars().enumerate() {
+                let mut i = 0;
+
+                while i < line.chars().count() {
+                    // unwrap is safe as the index is in bounds
+                    let c = line.chars().nth(i).unwrap();
+
                     match c {
                         '(' => self.tokens.push(Token::new(
                             TokenType::LeftParenthesis,
@@ -56,12 +61,7 @@ pub mod scanning {
                             format!("}}"),
                             idx as u64,
                         )),
-                        '!' => self.tokens.push(Token::new(
-                            TokenType::Bang,
-                            None,
-                            format!("!"),
-                            idx as u64,
-                        )),
+
                         ',' => self.tokens.push(Token::new(
                             TokenType::Comma,
                             None,
@@ -80,50 +80,148 @@ pub mod scanning {
                             format!(";"),
                             idx as u64,
                         )),
-                        /*'' => self.tokens.push(Token::new(
-                            TokenType::LeftParenthesis,
-                            None,
-                            format!("("),
-                            idx as u64,
-                        )),
-                        '(' => self.tokens.push(Token::new(
-                            TokenType::LeftParenthesis,
-                            None,
-                            format!("("),
-                            idx as u64,
-                        )),
-                        '(' => self.tokens.push(Token::new(
-                            TokenType::LeftParenthesis,
-                            None,
-                            format!("("),
-                            idx as u64,
-                        )),
-                        '(' => self.tokens.push(Token::new(
-                            TokenType::LeftParenthesis,
-                            None,
-                            format!("("),
-                            idx as u64,
-                        )),
-                        '(' => self.tokens.push(Token::new(
-                            TokenType::LeftParenthesis,
-                            None,
-                            format!("("),
-                            idx as u64,
-                        )),
-                        '(' => self.tokens.push(Token::new(
-                            TokenType::LeftParenthesis,
-                            None,
-                            format!("("),
-                            idx as u64,
-                        )),
-                        '(' => self.tokens.push(Token::new(
-                            TokenType::LeftParenthesis,
-                            None,
-                            format!("("),
-                            idx as u64,
-                        )),*/
-                        _ => (),
+                        '!' => {
+                            let other_c: Option<char> = line.chars().nth(i + 1);
+                            if other_c == Some('=') {
+                                i += 1;
+                                self.tokens.push(Token::new(
+                                    TokenType::BangEqual,
+                                    None,
+                                    format!("!="),
+                                    idx as u64,
+                                ))
+                            } else {
+                                self.tokens.push(Token::new(
+                                    TokenType::Bang,
+                                    None,
+                                    format!("!"),
+                                    idx as u64,
+                                ))
+                            }
+                        }
+                        '+' => {
+                            if line.chars().nth(i + 1) == Some('=') {
+                                // Special case
+                            } else {
+                                self.tokens.push(Token::new(
+                                    TokenType::Plus,
+                                    None,
+                                    format!("+"),
+                                    idx as u64,
+                                ))
+                            }
+                        }
+                        '-' => {
+                            if line.chars().nth(i + 1) == Some('=') {
+                                // Special case
+                            } else {
+                                self.tokens.push(Token::new(
+                                    TokenType::Minus,
+                                    None,
+                                    format!("-"),
+                                    idx as u64,
+                                ))
+                            }
+                        }
+                        '*' => {
+                            if line.chars().nth(i + 1) == Some('=') {
+                                // Special case
+                            } else {
+                                self.tokens.push(Token::new(
+                                    TokenType::Star,
+                                    None,
+                                    format!("*"),
+                                    idx as u64,
+                                ))
+                            }
+                        }
+                        '/' => {
+                            let other_c: Option<char> = line.chars().nth(i + 1);
+                            if other_c == Some('/') {
+                                // Comment line //
+                                i += 1;
+                                self.tokens.push(Token::new(
+                                    TokenType::Comment,
+                                    Some(
+                                        line.chars().collect::<Vec<char>>()[i + 1..]
+                                            .iter()
+                                            .collect::<String>(),
+                                    ),
+                                    format!("//"),
+                                    idx as u64,
+                                ))
+                            }
+                            if other_c == Some('*') {
+                                // multiline comment /*
+                            }
+                            if other_c == Some('=') {
+                                // divide equals /=
+                            } else {
+                                self.tokens.push(Token::new(
+                                    TokenType::Slash,
+                                    None,
+                                    format!("/"),
+                                    idx as u64,
+                                ))
+                            }
+                        }
+                        '>' => {
+                            if line.chars().nth(i + 1) == Some('=') {
+                                i += 1;
+                                self.tokens.push(Token::new(
+                                    TokenType::GreaterEqual,
+                                    None,
+                                    format!(">="),
+                                    idx as u64,
+                                ))
+                            } else {
+                                self.tokens.push(Token::new(
+                                    TokenType::Greater,
+                                    None,
+                                    format!(">"),
+                                    idx as u64,
+                                ))
+                            }
+                        }
+                        '<' => {
+                            if line.chars().nth(i + 1) == Some('=') {
+                                i += 1;
+                                self.tokens.push(Token::new(
+                                    TokenType::LessEqual,
+                                    None,
+                                    format!("<="),
+                                    idx as u64,
+                                ))
+                            } else {
+                                self.tokens.push(Token::new(
+                                    TokenType::Less,
+                                    None,
+                                    format!("<"),
+                                    idx as u64,
+                                ))
+                            }
+                        }
+                        '=' => {
+                            if line.chars().nth(i + 1) == Some('=') {
+                                i += 1;
+                                self.tokens.push(Token::new(
+                                    TokenType::EqualEqual,
+                                    None,
+                                    format!("=="),
+                                    idx as u64,
+                                ))
+                            } else {
+                                self.tokens.push(Token::new(
+                                    TokenType::Equal,
+                                    None,
+                                    format!("="),
+                                    idx as u64,
+                                ))
+                            }
+                        }
+                        _ => return Err(anyhow!("Unsupported character")),
                     }
+                    i += 1;
                 }
             }
 
@@ -134,7 +232,7 @@ pub mod scanning {
                 contents.lines().count() as u64,
             ));
 
-            return Ok(self.tokens);
+            return Ok(Vec::new());
         }
     }
 
@@ -158,6 +256,7 @@ pub mod scanning {
         BangEqual,
         Class,
         Comma,
+        Comment,
         Dot,
         Else,
         Eof,
@@ -233,6 +332,7 @@ pub mod scanning {
                 TokenType::BangEqual => write!(f, "!="),
                 TokenType::Class => write!(f, "class"),
                 TokenType::Comma => write!(f, ","),
+                TokenType::Comment => write!(f, "Comment"),
                 TokenType::Dot => write!(f, "."),
                 TokenType::Else => write!(f, "else"),
                 TokenType::Eof => write!(f, "EOF"),
