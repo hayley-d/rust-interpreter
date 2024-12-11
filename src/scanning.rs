@@ -3,6 +3,11 @@ pub mod scanning {
     use std::fmt::Display;
     use std::fs;
 
+    static KEYWORDS: [&'static str; 16] = [
+        "and", "class", "else", "false", "for", "fun", "if", "nil", "or", "print", "return",
+        "super", "this", "true", "var", "while",
+    ];
+
     pub struct Scanner {
         source: String,
         pub tokens: Vec<Token>,
@@ -367,6 +372,62 @@ pub mod scanning {
                                 )),
                             }
                         }
+                        'A'..='Z' | 'a'..='z' | '_' => {
+                            let next: Option<char> = line.chars().nth(i + 1);
+
+                            match next {
+                                Some(n) => {
+                                    if n.is_ascii_alphabetic() || n == '_' || n.is_digit(10) {
+                                        let mut identifier: String = String::from(c);
+                                        identifier.push(n);
+                                        i += 2;
+
+                                        while i < line.len() {
+                                            let n = line.chars().nth(i).unwrap();
+                                            if n.is_ascii_alphabetic() || n == '_' || n.is_digit(10)
+                                            {
+                                                identifier.push(n);
+                                            } else if n == ' ' {
+                                                break;
+                                            } else {
+                                                eprintln!(
+                                                    "{}",
+                                                    anyhow!(
+                                                        "[line {}] Error: Invalid identifier name",
+                                                        idx
+                                                    )
+                                                );
+                                            }
+                                            i += 1;
+                                        }
+
+                                        if KEYWORDS.iter().any(|&k| k == identifier) {}
+
+                                        self.tokens.push(Token::new(
+                                            TokenType::Identifier,
+                                            Some(identifier.clone()),
+                                            format!("{}", identifier),
+                                            idx as u64,
+                                        ));
+
+                                        continue;
+                                    } else {
+                                        self.tokens.push(Token::new(
+                                            TokenType::Number,
+                                            Some(c.to_string()),
+                                            format!("{}.0", c),
+                                            idx as u64,
+                                        ))
+                                    }
+                                }
+                                None => self.tokens.push(Token::new(
+                                    TokenType::Number,
+                                    Some(c.to_string()),
+                                    format!("{}", c),
+                                    idx as u64,
+                                )),
+                            }
+                        }
                         _ => {
                             let error =
                                 anyhow!("[line {}] Error: Unexpected character: {}", idx + 1, c);
@@ -526,6 +587,30 @@ pub mod scanning {
                         None => &nil,
                     }
                 )
+            }
+        }
+    }
+
+    impl TokenType {
+        pub fn get_keyword(keyword: &str) -> TokenType {
+            match keyword {
+                "and" => TokenType::And,
+                "class" => TokenType::Class,
+                "else" => TokenType::Else,
+                "false" => TokenType::False,
+                "for" => TokenType::For,
+                "fun" => TokenType::Fun,
+                "if" => TokenType::If,
+                "nil" => TokenType::Nil,
+                "or" => TokenType::Or,
+                "print" => TokenType::Print,
+                "return" => TokenType::Return,
+                "true" => TokenType::True,
+                "super" => TokenType::Super,
+                "this" => TokenType::This,
+                "var" => TokenType::Var,
+                "while" => TokenType::While,
+                _ => TokenType::Nil,
             }
         }
     }
