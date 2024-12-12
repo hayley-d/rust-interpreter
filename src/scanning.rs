@@ -473,10 +473,10 @@ pub mod scanning {
     #[allow(dead_code)]
     #[derive(Debug)]
     pub struct Token {
-        token_type: TokenType,
-        lexeme: String,
-        literal: Option<String>,
-        line: u64,
+        pub token_type: TokenType,
+        pub lexeme: String,
+        pub literal: Option<String>,
+        pub line: u64,
     }
 
     pub fn read_file(path: &str) -> Result<String> {

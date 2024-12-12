@@ -1,6 +1,7 @@
 use std::io::{self, Write};
 use std::{env, process};
 
+use rust_interpreter::parser::Parser;
 use rust_interpreter::scanning::scanning::Scanner;
 
 fn main() {
@@ -13,14 +14,11 @@ fn main() {
     let command = &args[1];
     let filename = &args[2];
 
+    let mut scanner: Scanner;
+
     match command.as_str() {
         "tokenize" => {
-            /*let file_contents = fs::read_to_string(filename).unwrap_or_else(|_| {
-                writeln!(io::stderr(), "Failed to read file {}", filename).unwrap();
-                String::new()
-            });*/
-
-            let mut scanner = Scanner::new(filename.to_string());
+            scanner = Scanner::new(filename.to_string());
             let errors = match scanner.scan_tokens() {
                 Ok(t) => t,
                 Err(e) => {
@@ -29,13 +27,15 @@ fn main() {
                 }
             };
 
-            for token in scanner.tokens {
+            for token in &scanner.tokens {
                 println!("{}", token);
             }
 
             if errors > 0 {
                 process::exit(65);
             }
+
+            let paser: Parser = Parser::new(scanner.tokens);
         }
         _ => {
             writeln!(io::stderr(), "Unknown command: {}", command).unwrap();
