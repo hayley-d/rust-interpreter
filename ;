@@ -9,8 +9,8 @@ pub enum Expression<'a> {
     Boolean(bool),
     Nil,
     EOF,
-    Unary(&Token, Box<Expression<'a>>),
-    Binary(Box<Expression<'a>>, &Token, Box<Expression<'a>>),
+    Unary(Token, Box<Expression<'a>>),
+    Binary(Box<Expression<'a>>, Token, Box<Expression<'a>>),
     Grouping(Box<Expression<'a>>),
 }
 
@@ -188,8 +188,6 @@ impl<'a> Parser<'a> {
         todo!()
     }
 
-    // returns a Literal Expression
-    // The only evaluate function that is not recursive
     fn evaluate_literal(&'a self) -> Result<Expression<'a>, Error> {
         if self.current as usize >= self.tokens.len() {
             return Ok(Expression::EOF);
@@ -223,54 +221,11 @@ impl<'a> Parser<'a> {
         }
     }
 
-    // this expects the current token to be a ! or - or +
-    fn evaluate_unary(&'a mut self) -> Result<Expression<'a>, Error> {
-        if self.current as usize >= self.tokens.len() - 1 {
-            return Ok(Expression::EOF);
-        } else {
-            let current_token: &Token = &self.tokens[self.current as usize];
-            let next_token: &Token = &self.tokens[self.current as usize + 1];
-
-            match current_token.token_type {
-                TokenType::Bang => match next_token.token_type {
-                    TokenType::String
-                    | TokenType::Number
-                    | TokenType::Nil
-                    | TokenType::False
-                    | TokenType::True => {
-                        self.current += 1;
-
-                        let expression: Expression = match self.evaluate_literal() {
-                            Ok(e) => e,
-                            Err(e) => return Err(e),
-                        };
-
-                        return Ok(Expression::Unary(current_token, Box::new(expression)));
-                    }
-                    TokenType::LeftParenthesis => {
-                        self.current += 1;
-
-                        let expression: Expression = match self.evaluate_group() {
-                            Ok(e) => e,
-                            Err(e) => return Err(e),
-                        };
-                        return Ok(Expression::Unary(current_token, Box::new(expression)));
-                    }
-                    _ => {
-                        return Err(anyhow!("Error: Unexpected token after unary operator"));
-                    }
-                },
-                TokenType::Minus => {}
-                TokenType::Plus => {}
-                _ => {
-                    return Err(anyhow!("Error: Not a literal"));
-                }
-            }
-        }
+    fn evaluate_unary(&self, start: usize) -> Result<Expression<'a>, Error> {
         todo!()
     }
 
-    fn evaluate_binary(&'a mut self, start: usize) -> Result<Expression<'a>, Error> {
+    fn evaluate_binary(&self, start: usize) -> Result<Expression<'a>, Error> {
         if start >= self.tokens.len() || start == 0 {
             return Err(anyhow!("Error: Unexpected error when parsing tokens"));
         }
@@ -278,7 +233,7 @@ impl<'a> Parser<'a> {
         todo!()
     }
 
-    fn evaluate_group(&'a mut self) -> Result<Expression<'a>, Error> {
+    fn evaluate_group(&self, start: usize, end: usize) -> Result<Expression<'a>, Error> {
         todo!()
     }
 }
