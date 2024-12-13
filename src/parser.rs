@@ -1,5 +1,7 @@
 use anyhow::{anyhow, Error, Result};
+use std::cell::RefCell;
 use std::fmt::Display;
+use std::rc::Rc;
 
 use crate::{Token, TokenType};
 
@@ -10,7 +12,7 @@ pub enum Expression<'a> {
     Nil,
     EOF,
     Unary(&Token, Box<Expression<'a>>),
-    Binary(Box<Expression<'a>>, &Token, Box<Expression<'a>>),
+    Binary(Box<Expression<'a>>, &'a Token, Box<Expression<'a>>),
     Grouping(Box<Expression<'a>>),
 }
 
@@ -31,7 +33,7 @@ impl<'a> Parser<'a> {
 
     // This is the entry point all call recursive functions
     pub fn parse(&self) -> Result<Expression, Error> {
-        for i in 0..self.tokens.len() {
+        /*for i in 0..self.tokens.len() {
             match &self.tokens[i].token_type {
                 TokenType::And => {
                     return self.evaluate_binary(i);
@@ -185,16 +187,20 @@ impl<'a> Parser<'a> {
                 }
             } // end match
         } // end for
+            */
         todo!()
     }
 
     // returns a Literal Expression
     // The only evaluate function that is not recursive
-    fn evaluate_literal(&'a self) -> Result<Expression<'a>, Error> {
-        if self.current as usize >= self.tokens.len() {
+    pub fn evaluate_literal(
+        &'a self,
+        parser: Rc<RefCell<Parser<'a>>>,
+    ) -> Result<Expression<'a>, Error> {
+        if parser.borrow().current as usize >= parser.borrow().tokens.len() {
             return Ok(Expression::EOF);
         } else {
-            let current_token: &Token = &self.tokens[self.current as usize];
+            let current_token: &Token = &parser.borrow().tokens[parser.borrow().current as usize];
             match current_token.token_type {
                 TokenType::Eof => {
                     return Ok(Expression::EOF);
@@ -211,7 +217,9 @@ impl<'a> Parser<'a> {
                     ));
                 }
                 TokenType::String => {
-                    return Ok(Expression::String(&current_token.lexeme));
+                    return Ok(Expression::String(
+                        &self.tokens[self.current as usize].lexeme,
+                    ));
                 }
                 TokenType::Nil => {
                     return Ok(Expression::Nil);
@@ -224,61 +232,65 @@ impl<'a> Parser<'a> {
     }
 
     // this expects the current token to be a ! or - or +
-    fn evaluate_unary(&'a mut self) -> Result<Expression<'a>, Error> {
-        if self.current as usize >= self.tokens.len() - 1 {
+    pub fn evaluate_unary(
+        &'a self,
+        parser: Rc<RefCell<Parser<'a>>>,
+    ) -> Result<Expression<'a>, Error> {
+        if parser.borrow().current as usize >= parser.borrow().tokens.len() - 1 {
             return Ok(Expression::EOF);
         } else {
-            let current_token: &Token = &self.tokens[self.current as usize];
-            let next_token: &Token = &self.tokens[self.current as usize + 1];
+            let current_token: &Token = &parser.borrow().tokens[parser.borrow().current as usize];
+            let next_token: &Token = &parser.borrow().tokens[parser.borrow().current as usize + 1];
 
             match current_token.token_type {
-                TokenType::Bang => match next_token.token_type {
+                TokenType::Bang | TokenType::Minus | TokenType::Plus => match next_token.token_type
+                {
                     TokenType::String
                     | TokenType::Number
                     | TokenType::Nil
                     | TokenType::False
                     | TokenType::True => {
-                        self.current += 1;
+                        parser.borrow_mut().current += 1;
 
-                        let expression: Expression = match self.evaluate_literal() {
+                        let expression: Expression = match self.evaluate_literal(Rc::clone(&parser))
+                        {
                             Ok(e) => e,
                             Err(e) => return Err(e),
                         };
 
-                        return Ok(Expression::Unary(current_token, Box::new(expression)));
+                        return Ok(Expression::Unary(
+                            &self.tokens[self.current as usize - 1],
+                            Box::new(expression),
+                        ));
                     }
                     TokenType::LeftParenthesis => {
-                        self.current += 1;
+                        parser.borrow_mut().current += 1;
 
-                        let expression: Expression = match self.evaluate_group() {
+                        let expression: Expression = match self.evaluate_group(Rc::clone(&parser)) {
                             Ok(e) => e,
                             Err(e) => return Err(e),
                         };
-                        return Ok(Expression::Unary(current_token, Box::new(expression)));
+                        return Ok(Expression::Unary(
+                            &self.tokens[self.current as usize - 1],
+                            Box::new(expression),
+                        ));
                     }
                     _ => {
                         return Err(anyhow!("Error: Unexpected token after unary operator"));
                     }
                 },
-                TokenType::Minus => {}
-                TokenType::Plus => {}
                 _ => {
                     return Err(anyhow!("Error: Not a literal"));
                 }
             }
         }
+    }
+
+    fn evaluate_binary(&'a self, parser: Rc<RefCell<Parser<'a>>>) -> Result<Expression<'a>, Error> {
         todo!()
     }
 
-    fn evaluate_binary(&'a mut self, start: usize) -> Result<Expression<'a>, Error> {
-        if start >= self.tokens.len() || start == 0 {
-            return Err(anyhow!("Error: Unexpected error when parsing tokens"));
-        }
-
-        todo!()
-    }
-
-    fn evaluate_group(&'a mut self) -> Result<Expression<'a>, Error> {
+    fn evaluate_group(&'a self, parser: Rc<RefCell<Parser<'a>>>) -> Result<Expression<'a>, Error> {
         todo!()
     }
 }
