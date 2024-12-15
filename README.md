@@ -29,6 +29,9 @@ The `Scanner` module reads a source file, processes its content line-by-line, an
 - Nystrom, R., Crafting Interpreters. Available at: https://craftinginterpreters.com [Accessed 15 Dec. 2024].
 - Matklad, 2020. Simple but powerful Pratt parsing. Available at: https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html [Accessed 15 Dec. 2024].
 - Gjengset, J., 2020. Implementing a Lox interpreter in Rust. YouTube. Available at: https://www.youtube.com/watch?v=mNOLaw-_Buc&t=2237s [Accessed 15 Dec. 2024].
+- Nystrom, R., 2011. Pratt Parsers: Expression parsing made easy. Available at: https://journal.stuffwithstuff.com/2011/03/19/pratt-parsers-expression-parsing-made-easy/ [Accessed 15 Dec. 2024].
+- LangDev Stack Exchange, 2024. What exactly is Pratt parsing used for and how does it work?. Available at: https://langdev.stackexchange.com/questions/3254/what-exactly-is-pratt-parsing-used-for-and-how-does-it-work [Accessed 15 Dec. 2024].
+- Jrop, 2024. Pratt Parsing. Dev.to. Available at: https://dev.to/jrop/pratt-parsing [Accessed 15 Dec. 2024].
 
 ## Usage
 
