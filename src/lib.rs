@@ -6,3 +6,6 @@ use ast::abstract_syntax_tree::*;
 
 pub mod parser;
 use parser::*;
+
+pub mod lex;
+pub use lex::*;

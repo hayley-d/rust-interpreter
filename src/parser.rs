@@ -17,6 +17,8 @@ pub enum Expression<'a> {
     Grouping(Box<Expression<'a>>),
 }
 
+pub struct AST;
+
 pub struct Parser<'a> {
     tokens: VecDeque<Token>,
     current: u64,
@@ -247,7 +249,14 @@ impl<'a> Parser<'a> {
                         self.current += 1;
 
                         let expression: Expression = match self.evaluate_literal() {
-                            Ok(e) => e,
+                            Ok(e) => match e {
+                                Expression::EOF => {
+                                    return Err(anyhow!(
+                                        "Error: Incomplete unary, missing expression"
+                                    ));
+                                }
+                                _ => e,
+                            },
                             Err(e) => return Err(e),
                         };
 
@@ -257,7 +266,14 @@ impl<'a> Parser<'a> {
                         self.current += 1;
 
                         let expression: Expression = match self.evaluate_group() {
-                            Ok(e) => e,
+                            Ok(e) => match e {
+                                Expression::EOF => {
+                                    return Err(anyhow!(
+                                        "Error: Incomplete unary, missing expression"
+                                    ));
+                                }
+                                _ => e,
+                            },
                             Err(e) => return Err(e),
                         };
                         return Ok(Expression::Unary(current_token, Box::new(expression)));
@@ -273,11 +289,67 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn evaluate_binary(&'a self) -> Result<Expression<'a>, Error> {
-        todo!()
+    fn evaluate_binary(&'a mut self) -> Result<Expression<'a>, Error> {
+        if self.current as usize >= self.tokens.len() - 1 {
+            return Ok(Expression::EOF);
+        } else {
+            let current_token: Token = self.tokens.pop_front().unwrap();
+            let next_token: &Token = self.tokens.front().unwrap();
+
+            match current_token.token_type {
+                TokenType::Bang | TokenType::Plus | TokenType::Minus => {
+                    // unary expression
+
+                    let expression = match self.evaluate_unary() {
+                        Ok(e) => match e {
+                            Expression::EOF => {
+                                return Err(anyhow!("Error: Expected expression after parenthesis"))
+                            }
+                            _ => e,
+                        },
+                        Err(e) => return Err(e),
+                    };
+
+                    return Ok(Expression::Grouping(Box::new(expression)));
+                }
+                TokenType::String | TokenType::Number => {
+                    match next_token.token_type {
+                        TokenType::Plus | TokenType::Minus => {
+                        },
+                        TokenType::Star | TokenType::Slash => {
+                        },
+                        TokenType::StarEqual | TokenType::SlashEqual | TokenType::PlusEqual | TokenType::MinusEqual => {
+                        }
+                        _ => return Err(anyhow!("Error: Unimplemented case")),
+                    },
+                    todo!()
+                }
+                TokenType::RightParenthesis => {
+                    return Err(anyhow!("Error: Empty parenthesis"));
+                }
+                _ => return Err(anyhow!("Error: unexpected token after parenthesis")),
+            }
+        }
     }
 
     fn evaluate_group(&'a mut self) -> Result<Expression<'a>, Error> {
+        if self.current as usize >= self.tokens.len() - 1 {
+            return Err(anyhow!("Error: Expression expected"));
+        } else {
+            let current_token: Token = self.tokens.pop_front().unwrap();
+            let next_token: &Token = self.tokens.front().unwrap();
+
+            match current_token.token_type {
+                TokenType::Bang | TokenType::Plus | TokenType::Minus => {
+                    // unary expression
+                }
+                TokenType::String | TokenType::Number => {}
+                TokenType::RightParenthesis => {
+                    return Err(anyhow!("Error: Empty parenthesis"));
+                }
+                _ => return Err(anyhow!("Error: unexpected token after parenthesis")),
+            }
+        }
         todo!()
     }
 }
