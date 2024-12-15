@@ -28,7 +28,7 @@ pub enum TokenType {
     Fun,
     Greater,
     GreaterEqual,
-    Ident,
+    Identifier,
     If,
     LessEqual,
     Less,
@@ -78,7 +78,7 @@ impl Display for Token<'_> {
             TokenType::Fun => write!(f, "FUN {lexeme} null"),
             TokenType::Greater => write!(f, "GREATER {lexeme} null"),
             TokenType::GreaterEqual => write!(f, "GREATER_EQUAL {lexeme} null"),
-            TokenType::Ident => write!(f, "IDENTIFIER {lexeme} null"),
+            TokenType::Identifier => write!(f, "IDENTIFIER {lexeme} null"),
             TokenType::If => write!(f, "IF {lexeme} null"),
             TokenType::LeftBrace => write!(f, "LEFT_BRACE {lexeme} null"),
             TokenType::LeftParen => write!(f, "LEFT_PAREN {lexeme} null"),
@@ -209,7 +209,7 @@ impl<'a> Iterator for Lexer<'a> {
                 Slash,
                 String,
                 Number,
-                Ident,
+                Identifier,
                 IfEqualElse(TokenType, TokenType),
             }
 
@@ -291,7 +291,7 @@ impl<'a> Iterator for Lexer<'a> {
                 '=' => Group::IfEqualElse(TokenType::EqualEqual, TokenType::Equal),
                 '"' => Group::String,
                 '0'..='9' => Group::Number,
-                'a'..='z' | 'A'..='Z' | '_' => Group::Ident,
+                'a'..='z' | 'A'..='Z' | '_' => Group::Identifier,
                 c if c.is_whitespace() => continue,
                 c => {
                     return Some(Err(SingleTokenError {
@@ -305,7 +305,148 @@ impl<'a> Iterator for Lexer<'a> {
                 }
             };
 
-            todo!()
+            break match group {
+                Group::String => {
+                    if let Some(end) = self.remaining.find('"') {
+                        let literal = &remainder[..end + 1 + 1];
+                        self.byte_offset += end as u64 + 1;
+                        self.remaining = &self.remaining[end + 1..];
+                        Some(Ok(Token {
+                            lexeme: literal,
+                            line: starting_position,
+                            token_type: TokenType::String,
+                        }))
+                    } else {
+                        let err = StringTerminationError {
+                            src: self.input.to_string(),
+                            err_span: SourceSpan::from(
+                                self.byte_offset as usize - current.len_utf8()..self.input.len(),
+                            ),
+                        };
+
+                        // swallow the remainder of input as being a string
+                        self.byte_offset += self.remaining.len() as u64;
+                        self.remaining = &self.remaining[self.remaining.len()..];
+
+                        return Some(Err(err.into()));
+                    }
+                }
+                Group::Slash => {
+                    if self.remaining.starts_with('/') {
+                        // Comment
+                        let line_end = self
+                            .remaining
+                            .find('\n')
+                            .unwrap_or_else(|| self.remaining.len());
+                        self.byte_offset += line_end as u64;
+                        self.remaining = &self.remaining[line_end..];
+                        continue;
+                    } else {
+                        Some(Ok(Token {
+                            lexeme: current_str,
+                            line: starting_position,
+                            token_type: TokenType::Slash,
+                        }))
+                    }
+                }
+                Group::Identifier => {
+                    let first_non_ident = remainder
+                        .find(|c| !matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_'))
+                        .unwrap_or_else(|| remainder.len());
+
+                    let literal = &remainder[..first_non_ident];
+                    let extra_bytes = literal.len() - current.len_utf8();
+                    self.byte_offset += extra_bytes as u64;
+                    self.remaining = &self.remaining[extra_bytes..];
+
+                    let token_type = match literal {
+                        "and" => TokenType::And,
+                        "class" => TokenType::Class,
+                        "else" => TokenType::Else,
+                        "false" => TokenType::False,
+                        "for" => TokenType::For,
+                        "fun" => TokenType::Fun,
+                        "if" => TokenType::If,
+                        "nil" => TokenType::Nil,
+                        "or" => TokenType::Or,
+                        "print" => TokenType::Print,
+                        "return" => TokenType::Return,
+                        "super" => TokenType::Super,
+                        "this" => TokenType::This,
+                        "true" => TokenType::True,
+                        "var" => TokenType::Var,
+                        "while" => TokenType::While,
+                        _ => TokenType::Identifier,
+                    };
+
+                    return Some(Ok(Token {
+                        lexeme: literal,
+                        line: starting_position,
+                        token_type,
+                    }));
+                }
+                Group::Number => {
+                    let first_non_digit = remainder
+                        .find(|c| !matches!(c, '.' | '0'..='9'))
+                        .unwrap_or_else(|| remainder.len());
+
+                    let mut literal = &remainder[..first_non_digit];
+                    let mut dotted = literal.splitn(3, '.');
+                    match (dotted.next(), dotted.next(), dotted.next()) {
+                        (Some(one), Some(two), Some(_)) => {
+                            literal = &literal[..one.len() + 1 + two.len()];
+                        }
+                        (Some(one), Some(two), None) if two.is_empty() => {
+                            literal = &literal[..one.len()];
+                        }
+                        _ => {
+                            // leave literal as-is
+                        }
+                    }
+                    let extra_bytes = literal.len() - current.len_utf8();
+                    self.byte_offset += extra_bytes as u64;
+                    self.remaining = &self.remaining[extra_bytes..];
+
+                    let n = match literal.parse() {
+                        Ok(n) => n,
+                        Err(e) => {
+                            return Some(Err(miette::miette! {
+                                labels = vec![
+                                    LabeledSpan::at(self.byte_offset as usize - literal.len()..self.byte_offset as usize, "this numeric literal"),
+                                ],
+                                "{e}",
+                            }.with_source_code(self.input.to_string())));
+                        }
+                    };
+
+                    return Some(Ok(Token {
+                        lexeme: literal,
+                        line: starting_position,
+                        token_type: TokenType::Number(n),
+                    }));
+                }
+                Group::IfEqualElse(yes, no) => {
+                    self.remaining = self.remaining.trim_start();
+                    let trimmed = remainder.len() - self.remaining.len() - 1;
+                    self.byte_offset += trimmed as u64;
+                    if self.remaining.starts_with('=') {
+                        let span = &remainder[..current.len_utf8() + trimmed + 1];
+                        self.remaining = &self.remaining[1..];
+                        self.byte_offset += 1;
+                        Some(Ok(Token {
+                            lexeme: span,
+                            line: starting_position,
+                            token_type: yes,
+                        }))
+                    } else {
+                        Some(Ok(Token {
+                            lexeme: current_str,
+                            line: starting_position,
+                            token_type: no,
+                        }))
+                    }
+                }
+            };
         }
     }
 }
