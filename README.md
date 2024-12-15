@@ -24,6 +24,12 @@ The `Scanner` module reads a source file, processes its content line-by-line, an
 - **Enumerations (`enum`)**: The `TokenType` enum is used to define and categorize different types of tokens, making the code more maintainable and readable.
 - **Iterators and `for` Loops**: Iterators and `for` loops are utilized to process the lines of the source file and individual characters in each line.
 - **`Option<T>`**: Used for optional values, particularly for managing literals and errors when parsing different parts of the source.
+
+## References
+- Nystrom, R., Crafting Interpreters. Available at: https://craftinginterpreters.com [Accessed 15 Dec. 2024].
+- Matklad, 2020. Simple but powerful Pratt parsing. Available at: https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html [Accessed 15 Dec. 2024].
+- Gjengset, J., 2020. Implementing a Lox interpreter in Rust. YouTube. Available at: https://www.youtube.com/watch?v=mNOLaw-_Buc&t=2237s [Accessed 15 Dec. 2024].
+
 ## Usage
 
 #### Creating a Scanner Instance

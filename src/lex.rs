@@ -10,6 +10,7 @@ pub struct LexError {
     message: String,
 }
 
+/// Enum that describes all the different types of tokens that Lox language contains.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TokenType {
     RightParen,
@@ -52,6 +53,9 @@ pub enum TokenType {
     While,
 }
 
+/// Struct for a token that contains the 'lexeme' which is the actual string representation of the
+/// character or set of characters, the 'line' is the offset of where the character can be found in
+/// the input text and the 'token_type' which is the type of token being represented.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Token<'a> {
     pub lexeme: &'a str,
@@ -151,6 +155,7 @@ impl<'a> Lexer<'a> {
         };
     }
 
+    // Returns the next character if there is one, but does not consume it.
     pub fn peek(&mut self) -> Option<&Result<Token<'a>, miette::Error>> {
         if self.peeked.is_some() {
             return self.peeked.as_ref();
@@ -218,18 +223,23 @@ impl<'a> Iterator for Lexer<'a> {
             // Increase the current position to after the current token
             self.byte_offset += length as u64;
 
+            // Ignore any whitespace characters
             if current.is_whitespace() {
                 continue;
             }
 
+            // Some TokenTypes require a group of characters
             enum Group {
                 Slash,
                 String,
                 Number,
                 Identifier,
+                // For token types with multiple meanings such as / can be divide or the start of a
+                // comment
                 IfEqualElse(TokenType, TokenType),
             }
 
+            // Evaluate char into token
             let group = match current {
                 '(' => {
                     return Some(Ok(Token::new(
@@ -322,6 +332,7 @@ impl<'a> Iterator for Lexer<'a> {
                 }
             };
 
+            // Futher evaluation if it was a char group
             break match group {
                 Group::String => {
                     if let Some(end) = self.remaining.find('"') {
