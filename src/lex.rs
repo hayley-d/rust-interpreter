@@ -160,20 +160,33 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    /*pub fn expect(
+    pub fn expect(
+        &mut self,
+        expected: TokenType,
+        unexpected: &str,
+    ) -> Result<Token<'a>, miette::Error> {
+        self.expect_where(|next| next.token_type == expected, unexpected)
+    }
+
+    pub fn expect_where(
         &mut self,
         mut check: impl FnMut(&Token<'a>) -> bool,
         unexpected: &str,
     ) -> Result<Token<'a>, miette::Error> {
         match self.next() {
             Some(Ok(token)) if check(&token) => Ok(token),
-            Some(Ok(token)) => Err(miette::miette!{
-                labels = vec![LabeledSpan::at(token.line..token.line + token.lexeme.len(),"here"),],help=format!("Expected {token:?}"),"{unexpected}",
-            }.with_source_code(self.input.to_string())),
+            Some(Ok(token)) => Err(miette::miette! {
+                labels = vec![
+                    LabeledSpan::at(token.line as usize..token.line as usize + token.lexeme.len(), "here"),
+                ],
+                help = format!("Expected {token:?}"),
+                "{unexpected}",
+            }
+            .with_source_code(self.input.to_string())),
             Some(Err(e)) => Err(e),
-            None => Err("EOF"),
+            None => Err(Eof.into()),
         }
-    }*/
+    }
 }
 
 impl<'a> Iterator for Lexer<'a> {
@@ -204,6 +217,10 @@ impl<'a> Iterator for Lexer<'a> {
 
             // Increase the current position to after the current token
             self.byte_offset += length as u64;
+
+            if current.is_whitespace() {
+                continue;
+            }
 
             enum Group {
                 Slash,
