@@ -1,4 +1,5 @@
 pub mod scanning {
+
     use anyhow::{anyhow, Result};
     use std::fmt::Display;
     use std::fs;

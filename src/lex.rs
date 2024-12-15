@@ -1,8 +1,8 @@
 use core::fmt;
+use miette::{Diagnostic, Error, LabeledSpan, SourceSpan};
 use std::borrow::Cow;
 use std::fmt::Display;
-
-use miette::{Diagnostic, Error, LabeledSpan, SourceSpan};
+use thiserror::Error;
 
 #[derive(Diagnostic, Debug, Error)]
 #[error("Unexpected character")]
@@ -112,8 +112,18 @@ impl Display for Token<'_> {
     }
 }
 
-impl Token<'_> {
-    pub fn unescape<'de>(s: &'de str) -> Cow<'de, str> {
+impl<'a> Token<'a> {
+    pub fn new(lexeme: &'a str, offset: u64, token: TokenType) -> Self {
+        return Token {
+            lexeme,
+            line: offset,
+            token_type: token,
+        };
+    }
+
+    // use 'o instead of 'a as the lifetimes are different this lifetime is not dependent on the
+    // token lifetime
+    pub fn unescape<'o>(s: &'o str) -> Cow<'o, str> {
         // Lox has no escaping
         // Since it has no escaping, strings can't contain ", so trim won't trim multiple
         Cow::Borrowed(s.trim_matches('"'))
@@ -121,9 +131,13 @@ impl Token<'_> {
 }
 
 pub struct Lexer<'a> {
+    // Original input str
     input: &'a str,
+    // Remaining unlexed chars
     remaining: &'a str,
-    current: u64,
+    // The position of the current char in the original input str
+    byte_offset: u64,
+
     peeked: Option<Result<Token<'a>, miette::Error>>,
 }
 
@@ -132,7 +146,7 @@ impl<'a> Lexer<'a> {
         return Lexer {
             input,
             remaining: input,
-            current: 0,
+            byte_offset: 0,
             peeked: None,
         };
     }
@@ -146,7 +160,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    pub fn expect(
+    /*pub fn expect(
         &mut self,
         mut check: impl FnMut(&Token<'a>) -> bool,
         unexpected: &str,
@@ -159,7 +173,7 @@ impl<'a> Lexer<'a> {
             Some(Err(e)) => Err(e),
             None => Err("EOF"),
         }
-    }
+    }*/
 }
 
 impl<'a> Iterator for Lexer<'a> {
@@ -179,18 +193,159 @@ impl<'a> Iterator for Lexer<'a> {
 
             let length = current.len_utf8();
 
-            let starting_position = self.current;
+            let starting_position = self.byte_offset;
 
-            let current = &self.remaining[..length];
+            let current_str = &self.remaining[..length];
 
             let remainder = self.remaining;
 
             // Set the remaining chars in the Lexer
             self.remaining = remaining_chars.as_str();
 
-            self.current += length as u64;
+            // Increase the current position to after the current token
+            self.byte_offset += length as u64;
+
+            enum Group {
+                Slash,
+                String,
+                Number,
+                Ident,
+                IfEqualElse(TokenType, TokenType),
+            }
+
+            let group = match current {
+                '(' => {
+                    return Some(Ok(Token::new(
+                        current_str,
+                        self.byte_offset,
+                        TokenType::LeftParen,
+                    )))
+                }
+                ')' => {
+                    return Some(Ok(Token::new(
+                        current_str,
+                        self.byte_offset,
+                        TokenType::RightParen,
+                    )))
+                }
+                '{' => {
+                    return Some(Ok(Token::new(
+                        current_str,
+                        self.byte_offset,
+                        TokenType::LeftBrace,
+                    )))
+                }
+                '}' => {
+                    return Some(Ok(Token::new(
+                        current_str,
+                        self.byte_offset,
+                        TokenType::RightBrace,
+                    )))
+                }
+                ',' => {
+                    return Some(Ok(Token::new(
+                        current_str,
+                        self.byte_offset,
+                        TokenType::Comma,
+                    )))
+                }
+                '.' => {
+                    return Some(Ok(Token::new(
+                        current_str,
+                        self.byte_offset,
+                        TokenType::Dot,
+                    )))
+                }
+                '-' => {
+                    return Some(Ok(Token::new(
+                        current_str,
+                        self.byte_offset,
+                        TokenType::Minus,
+                    )))
+                }
+                '+' => {
+                    return Some(Ok(Token::new(
+                        current_str,
+                        self.byte_offset,
+                        TokenType::Plus,
+                    )))
+                }
+                ';' => {
+                    return Some(Ok(Token::new(
+                        current_str,
+                        self.byte_offset,
+                        TokenType::Semicolon,
+                    )))
+                }
+                '*' => {
+                    return Some(Ok(Token::new(
+                        current_str,
+                        self.byte_offset,
+                        TokenType::Star,
+                    )))
+                }
+                '/' => Group::Slash,
+                '<' => Group::IfEqualElse(TokenType::LessEqual, TokenType::Less),
+                '>' => Group::IfEqualElse(TokenType::GreaterEqual, TokenType::Greater),
+                '!' => Group::IfEqualElse(TokenType::BangEqual, TokenType::Bang),
+                '=' => Group::IfEqualElse(TokenType::EqualEqual, TokenType::Equal),
+                '"' => Group::String,
+                '0'..='9' => Group::Number,
+                'a'..='z' | 'A'..='Z' | '_' => Group::Ident,
+                c if c.is_whitespace() => continue,
+                c => {
+                    return Some(Err(SingleTokenError {
+                        src: self.input.to_string(),
+                        token: c,
+                        err_span: SourceSpan::from(
+                            self.byte_offset as usize - c.len_utf8()..self.byte_offset as usize,
+                        ),
+                    }
+                    .into()));
+                }
+            };
 
             todo!()
         }
+    }
+}
+
+#[derive(Diagnostic, Debug, Error)]
+#[error("Unexpected EOF")]
+pub struct Eof;
+
+#[derive(Diagnostic, Debug, Error)]
+#[error("Unexpected token '{token}'")]
+pub struct SingleTokenError {
+    #[source_code]
+    src: String,
+
+    pub token: char,
+
+    #[label = "this character"]
+    err_span: SourceSpan,
+}
+
+impl SingleTokenError {
+    pub fn line(&self) -> usize {
+        let until_unrecongized = &self.src[..=self.err_span.offset()];
+        until_unrecongized.lines().count()
+    }
+}
+
+#[derive(Diagnostic, Debug, Error)]
+#[error("Unterminated string")]
+pub struct StringTerminationError {
+    #[source_code]
+    src: String,
+
+    #[label = "this string literal"]
+    err_span: SourceSpan,
+}
+
+impl StringTerminationError {
+    pub fn line(&self) -> usize {
+        let until_unrecongized = &self.src[..=self.err_span.offset()];
+        until_unrecongized.lines().count()
     }
 }
