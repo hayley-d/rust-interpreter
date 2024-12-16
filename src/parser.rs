@@ -1,4 +1,331 @@
-use anyhow::{anyhow, Error, Result};
+use crate::{Lexer, Token, TokenType};
+use miette::{Error, LabeledSpan, WrapErr};
+use std::{borrow::Cow, fmt};
+
+pub struct Parser<'a> {
+    input: &'a str,
+    lexer: Lexer<'a>,
+}
+
+impl<'a> Parser<'a> {
+    pub fn new(input: &'a str) -> Self {
+        return Parser {
+            input,
+            lexer: Lexer::new(input),
+        };
+    }
+
+    pub fn parser(self) -> Result<ParseTree<'a>, miette::Error> {
+        todo!()
+    }
+
+    pub fn parse_expression(mut self) -> Result<ParseTree<'a>, miette::Error> {
+        return self.parse_expression_within(0);
+    }
+
+    // Parses a Code block {...}
+    pub fn parse_block(&mut self) -> Result<ParseTree<'a>, Error> {
+        self.lexer.expect(TokenType::LeftBrace, "missing {")?;
+        let block: ParseTree = self.parse_statement_within(0)?;
+        self.lexer.expect(TokenType::RightBrace, "missing }")?;
+        return Ok(block);
+    }
+
+    pub fn parse_function_calls(&mut self) -> Result<Vec<ParseTree<'a>>, Error> {
+        let mut arguments: Vec<ParseTree> = Vec::new();
+
+        if matches!(
+            self.lexer.peek(),
+            Some(Ok(Token {
+                token_type: TokenType::RightParen,
+                ..
+            }))
+        ) {
+            // No arguments for function call
+        } else {
+            loop {
+                let arg: ParseTree = self.parse_expression_within(0).wrap_err_with(|| {
+                    format!("in argument #{} of function call", arguments.len() + 1)
+                })?;
+
+                arguments.push(arg);
+
+                let token: Token = self
+                    .lexer
+                    .expect_where(
+                        |token| {
+                            matches!(token.token_type, TokenType::RightParen | TokenType::Comma)
+                        },
+                        "continuing argument list",
+                    )
+                    .wrap_err("in argument list of function call")?;
+
+                if token.token_type == TokenType::RightParen {
+                    break;
+                }
+            }
+        }
+
+        return Ok(arguments);
+    }
+
+    // The parser parses expression with a binding power higher than min_bp and will stop as soon
+    // as it comes accross a weaker binding power
+    pub fn parse_statement_within(&mut self, min_bp: u8) -> Result<ParseTree<'a>, Error> {
+        let lhs: Token = match self.lexer.next() {
+            Some(Ok(token)) => token,
+            Some(Err(e)) => return Err(e).wrap_err("on the left hand side"),
+            None => return Ok(ParseTree::Literal(Literal::Nil)),
+        };
+
+        let mut lhs: ParseTree = match lhs {
+            Token {
+                token_type: TokenType::Identifier,
+                lexeme,
+                ..
+            } => ParseTree::Literal(Literal::Identifier(lexeme)),
+            Token {
+                token_type: TokenType::Super,
+                ..
+            } => ParseTree::Literal(Literal::Super),
+            Token {
+                token_type: TokenType::This,
+                ..
+            } => ParseTree::Literal(Literal::This),
+            Token {
+                token_type: TokenType::LeftParen,
+                ..
+            } => {
+                let lhs: ParseTree = self
+                    .parse_expression_within(0)
+                    .wrap_err("in expression group")?;
+                self.lexer
+                    .expect(TokenType::RightParen, "Unexpected end to expression group")
+                    .wrap_err("after expression group")?;
+                ParseTree::Cons(Operator::Group, vec![lhs])
+            }
+            Token {
+                token_type: TokenType::Print | TokenType::Return,
+                ..
+            } => {
+                // If the operator is a print/return  get the binding power of the right hand side
+                let operator: Operator = match lhs.token_type {
+                    TokenType::Print => Operator::Print,
+                    TokenType::Return => Operator::Return,
+                    _ => unreachable!("by the outer arm pattern"),
+                };
+
+                let ((), right_bp): ((), u8) = prefix_binding_power(operator);
+
+                let rhs: ParseTree = self
+                    .parse_expression_within(right_bp)
+                    .wrap_err_with(|| format!("on the right-hand side of {operator:?}"))?;
+
+                return Ok(ParseTree::Cons(operator, vec![rhs]));
+            }
+            Token {
+                token_type: TokenType::This,
+                ..
+            } => ParseTree::Literal(Literal::This),
+        };
+
+        todo!()
+    }
+
+    pub fn parse_expression_within(&mut self, min_bp: u8) -> Result<ParseTree<'a>, Error> {
+        todo!()
+    }
+}
+
+// Enum that represents different possibilities for literal types.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Literal<'de> {
+    String(Cow<'de, str>),
+    Number(f64),
+    Nil,
+    Bool(bool),
+    Identifier(&'de str),
+    Super,
+    This,
+}
+
+impl fmt::Display for Literal<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Literal::String(s) => write!(f, "\"{s}\""),
+            Literal::Number(n) => {
+                if *n == n.trunc() {
+                    write!(f, "{:.1}", n)
+                } else {
+                    write!(f, "{n}")
+                }
+            }
+            Literal::Nil => write!(f, "nil"),
+            Literal::Bool(b) => write!(f, "{b:?}"),
+            Literal::Identifier(i) => write!(f, "{i}"),
+            Literal::Super => write!(f, "super"),
+            Literal::This => write!(f, "this"),
+        }
+    }
+}
+
+// Enum represents different types of operators
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Operator {
+    Minus,
+    Plus,
+    Star,
+    BangEqual,
+    EqualEqual,
+    LessEqual,
+    GreaterEqual,
+    Less,
+    Greater,
+    Slash,
+    Bang,
+    And,
+    Or,
+    Call,
+    For,
+    Class,
+    Print,
+    Return,
+    Field,
+    Var,
+    While,
+    Group,
+}
+
+impl fmt::Display for Operator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Operator::Minus => "-",
+                Operator::Plus => "+",
+                Operator::Star => "*",
+                Operator::BangEqual => "!=",
+                Operator::EqualEqual => "==",
+                Operator::LessEqual => "<=",
+                Operator::GreaterEqual => ">=",
+                Operator::Less => "<",
+                Operator::Greater => ">",
+                Operator::Slash => "/",
+                Operator::Bang => "!",
+                Operator::And => "and",
+                Operator::Or => "or",
+                Operator::For => "for",
+                Operator::Class => "class",
+                Operator::Print => "print",
+                Operator::Return => "return",
+                Operator::Field => ".",
+                Operator::Var => "var",
+                Operator::While => "while",
+                Operator::Call => "call",
+                Operator::Group => "group",
+            }
+        )
+    }
+}
+
+pub struct Ast {}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ParseTree<'a> {
+    Literal(Literal<'a>),
+    Cons(Operator, Vec<ParseTree<'a>>),
+    Fun {
+        name: Literal<'a>,
+        parameters: Vec<Token<'a>>,
+        body: Box<ParseTree<'a>>,
+    },
+    Call {
+        callee: Box<ParseTree<'a>>,
+        arguments: Vec<ParseTree<'a>>,
+    },
+    If {
+        condition: Box<ParseTree<'a>>,
+        yes: Box<ParseTree<'a>>,
+        no: Option<Box<ParseTree<'a>>>,
+    },
+}
+
+impl fmt::Display for ParseTree<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ParseTree::Literal(i) => write!(f, "{}", i),
+            ParseTree::Cons(head, rest) => {
+                write!(f, "({}", head)?;
+                for s in rest {
+                    write!(f, " {s}")?
+                }
+                write!(f, ")")
+            }
+            ParseTree::Fun {
+                name,
+                parameters,
+                body,
+            } => {
+                write!(f, "(def {name}")?;
+                for p in parameters {
+                    write!(f, " {p}")?
+                }
+                write!(f, " {body})")
+            }
+            ParseTree::Call { callee, arguments } => {
+                write!(f, "({callee}")?;
+                for a in arguments {
+                    write!(f, " {a}")?
+                }
+                write!(f, ")")
+            }
+            ParseTree::If { condition, yes, no } => {
+                write!(f, "(if {condition} {yes}")?;
+                if let Some(no) = no {
+                    write!(f, " {no}")?
+                }
+                write!(f, ")")
+            }
+        }
+    }
+}
+
+fn prefix_binding_power(op: Operator) -> ((), u8) {
+    match op {
+        Operator::Print | Operator::Return => ((), 1),
+        Operator::Bang | Operator::Minus => ((), 11),
+        _ => panic!("bad op: {:?}", op),
+    }
+}
+
+fn postfix_binding_power(op: Operator) -> Option<(u8, ())> {
+    let res = match op {
+        Operator::Call => (13, ()),
+        _ => return None,
+    };
+    Some(res)
+}
+
+// Computes the left and right powers for the given operator.
+// u8 is used to represent the power, the lowest power is 1 (0 is reserved to signify end of input)
+fn infix_binding_power(op: Operator) -> Option<(u8, u8)> {
+    let res = match op {
+        Operator::And | Operator::Or => (3, 4),
+        Operator::BangEqual
+        | Operator::EqualEqual
+        | Operator::Less
+        | Operator::LessEqual
+        | Operator::Greater
+        | Operator::GreaterEqual => (5, 6),
+        Operator::Plus | Operator::Minus => (7, 8),
+        Operator::Star | Operator::Slash => (9, 10),
+        Operator::Field => (16, 15),
+        _ => return None,
+    };
+    Some(res)
+}
+/*use anyhow::{anyhow, Error, Result};
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::fmt::Display;
@@ -368,6 +695,7 @@ impl<'a> Display for Expression<'a> {
             }
             Expression::Nil => {
                 write!(f, "nil")
+
             }
             Expression::Unary(token, expression) => {
                 write!(f, "{} {expression}", token.lexeme)
@@ -381,4 +709,4 @@ impl<'a> Display for Expression<'a> {
             _ => write!(f, ""),
         }
     }
-}
+}*/
