@@ -1,75 +1,95 @@
-# Scanner Module
+# Lox Interpreter
 
-This module provides a **Scanner** (also known as a tokenizer or lexer) for parsing source code into a sequence of tokens. It is particularly useful for interpreting or compiling programming languages.
+This repository implements a Lox interpreter in Rust, based on the Pratt Parsing technique. The project consists of a lexer for tokenizing the input, a Pratt parser for syntax analysis, and an evaluator for interpreting the parsed abstract syntax tree (AST).
 
-## Overview
+## Error Handling
+The project employs the miette crate to provide robust error diagnostics across all components. This ensures that any error encountered during lexing, parsing, or evaluation is reported with detailed context and suggestions for resolution.
 
-The `Scanner` module reads a source file, processes its content line-by-line, and identifies various tokens such as keywords, operators, literals, and identifiers. It constructs a list of tokens that can be further used for syntax analysis or other stages of the compilation/interpreting process. The module is designed to be highly extensible and can be integrated into larger language processors or compilers.
+- **Lexer Errors:** Invalid tokens, unrecognized characters, and incomplete literals are reported with their location in the source code.
 
+- **Parser Errors:** Syntax errors, such as missing parentheses or mismatched braces, include a labeled span and helpful messages.
 
-## Key Features
+- **Detailed Context:** Errors are annotated with line numbers, column positions, and previews of the surrounding code.
 
-- **Tokenization**: The `Scanner` breaks down a source file into meaningful tokens. It handles different types of tokens like keywords, operators, and identifiers.
-- **Multi-line Comments**: The module supports both single-line (`//`) and multi-line (`/* ... */`) comments.
-- **String Literals**: It can parse both single-line and multi-line string literals.
-- **Error Handling**: The module uses the `anyhow` crate to handle and report errors, providing detailed information for common issues like unterminated strings or comments.
-- **Custom Token Types**: Supports a variety of token types such as `Number`, `String`, `Keyword`, and various operators (`+`, `-`, `=`, etc.).
+- **Actionable Suggestions:** Common issues include guidance to help developers resolve them quickly.
 
-## Language Features Used
+By leveraging miette, the interpreter not only catches errors but also provides developers with the tools to debug and fix issues effectively.
 
-- **Result<T, E>**: Error handling is done using Rust's `Result` type, allowing the module to return success or failure with detailed error messages via the `anyhow` crate.
-- **Pattern Matching**: Rust's powerful pattern matching is used extensively in the `scan_tokens` function to handle different types of characters and token categories.
-- **String Manipulation**: Efficient string handling using `String` and `&str` allows the module to accumulate string literals and handle dynamic input.
-- **Static Arrays**: Static arrays are used to define keywords, ensuring that only recognized keywords are accepted.
-- **Enumerations (`enum`)**: The `TokenType` enum is used to define and categorize different types of tokens, making the code more maintainable and readable.
-- **Iterators and `for` Loops**: Iterators and `for` loops are utilized to process the lines of the source file and individual characters in each line.
-- **`Option<T>`**: Used for optional values, particularly for managing literals and errors when parsing different parts of the source.
+## Lexer
+
+The Lexer is responsible for converting the raw source code into a stream of tokens, which the parser consumes. The Lexer is responsible for breaking down the source code into tokens, capturing their type, value, and position within the input. Each token represents a meaningful unit in the source code, such as keywords, identifiers, operators, or literals.
+
+### Key Features of the Lexer:
+
+- **Tokenizes** source code into tokens, capturing their type, value, and position.
+
+- Handles different types of tokens like keywords (if, while, var), operators (+, -, *, /), and literals (numbers, strings, booleans).
+
+- Efficiently iterates over input and skips irrelevant characters like whitespace and comments.
+
+## Parser
+
+The Parser uses a **Pratt Parsing** approach to process the tokens and produce a parse tree representing the syntactic structure of the source code. It can handle both prefix and infix expressions, with support for operator precedence and associativity.
+
+#### Structure
+The parser is implemented in the `Parser` struct:
+```rust
+pub struct Parser<'a> {
+    input: &'a str,
+    lexer: Lexer<'a>,
+}
+```
+
+### Expression Parsing
+
+The parser uses **binding power** to handle operator precedence and associativity. The `parse_statement_within` and `parse_expression_within` methods recursively parse subexpressions based on their binding power.
+
+#### Operators are categorized with binding powers to manage precedence:
+
+- Prefix operators (e.g., -, !) are parsed using `prefix_binding_power`.
+
+- Postfix operators (e.g., function calls) are parsed using `postfix_binding_power`.
+
+- Infix operators (e.g., +, -, *, /) are parsed using `infix_binding_power`.
+
+### Abstract Syntax Tree (AST)
+
+The `ParseTree` enum represents the structure of parsed code:
+
+```rust
+#[derive(Debug, Clone, PartialEq)]
+pub enum ParseTree<'a> {
+    Literal(Literal<'a>),
+    Cons(Operator, Vec<ParseTree<'a>>),
+    Fun {
+        name: Literal<'a>,
+        parameters: Vec<Token<'a>>,
+        body: Box<ParseTree<'a>>,
+    },
+    Call {
+        callee: Box<ParseTree<'a>>,
+        arguments: Vec<ParseTree<'a>>,
+    },
+    If {
+        condition: Box<ParseTree<'a>>,
+        yes: Box<ParseTree<'a>>,
+        no: Option<Box<ParseTree<'a>>>,
+    },
+}
+```
 
 ## References
+
 - Nystrom, R., Crafting Interpreters. Available at: https://craftinginterpreters.com [Accessed 15 Dec. 2024].
+
 - Matklad, 2020. Simple but powerful Pratt parsing. Available at: https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html [Accessed 15 Dec. 2024].
+
 - Gjengset, J., 2020. Implementing a Lox interpreter in Rust. YouTube. Available at: https://www.youtube.com/watch?v=mNOLaw-_Buc&t=2237s [Accessed 15 Dec. 2024].
+
 - Nystrom, R., 2011. Pratt Parsers: Expression parsing made easy. Available at: https://journal.stuffwithstuff.com/2011/03/19/pratt-parsers-expression-parsing-made-easy/ [Accessed 15 Dec. 2024].
+
 - LangDev Stack Exchange, 2024. What exactly is Pratt parsing used for and how does it work?. Available at: https://langdev.stackexchange.com/questions/3254/what-exactly-is-pratt-parsing-used-for-and-how-does-it-work [Accessed 15 Dec. 2024].
 - Jrop, 2024. Pratt Parsing. Dev.to. Available at: https://dev.to/jrop/pratt-parsing [Accessed 15 Dec. 2024].
 
-## Usage
 
-#### Creating a Scanner Instance
-To create a new Scanner instance, provide the path to the source file:
-```rust
-let mut scanner = Scanner::new("source_code.txt".to_string());
-```
-#### Scanning Tokens
-To scan tokens from the source file, use the scan_tokens method. It will return a result indicating the number of errors encountered:
-```rust
-let result = scanner.scan_tokens();
-match result {
-    Ok(errors) => println!("Scanning complete with {} errors.", errors),
-    Err(e) => println!("Error: {}", e),
-}
 
-```
-To use the `Scanner` module, simply create a new `Scanner` instance by providing the path to the source code file, and then call the `scan_tokens` method to perform tokenization.
-
-### Example
-
-```rust
-use scanning::Scanner;
-
-fn main() {
-    let mut scanner = Scanner::new("path_to_source_code.rs".to_string());
-    match scanner.scan_tokens() {
-        Ok(error_count) => {
-            if error_count == 0 {
-                println!("Tokens scanned successfully:");
-                for token in &scanner.tokens {
-                    println!("{}", token);
-                }
-            } else {
-                println!("Encountered {} errors during scanning.", error_count);
-            }
-        }
-        Err(e) => eprintln!("Error scanning tokens: {}", e),
-    }
-}
