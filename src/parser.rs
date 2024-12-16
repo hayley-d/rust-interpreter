@@ -17,8 +17,8 @@ impl<'a> Parser<'a> {
         };
     }
 
-    pub fn parser(self) -> Result<ParseTree<'a>, miette::Error> {
-        todo!()
+    pub fn parser(mut self) -> Result<ParseTree<'a>, miette::Error> {
+        return self.parse_statement_within(0);
     }
 
     pub fn parse_expression(mut self) -> Result<ParseTree<'a>, miette::Error> {
@@ -415,7 +415,207 @@ impl<'a> Parser<'a> {
 
     // Will stop as soon as it comes accross an operator with a lower bp than the min_bp
     pub fn parse_expression_within(&mut self, min_bp: u8) -> Result<ParseTree<'a>, Error> {
-        todo!()
+        let lhs: Token = match self.lexer.next() {
+            Some(Ok(token)) => token,
+            Some(Err(e)) => return Err(e).wrap_err("on left hand side"),
+            None => return Ok(ParseTree::Literal(Literal::Nil)),
+        };
+
+        let mut lhs = match lhs {
+            Token {
+                token_type: TokenType::String,
+                lexeme,
+                ..
+            } => ParseTree::Literal(Literal::String(Token::unescape(lexeme))),
+            Token {
+                token_type: TokenType::Number(n),
+                ..
+            } => ParseTree::Literal(Literal::Number(n)),
+            Token {
+                token_type: TokenType::True,
+                ..
+            } => ParseTree::Literal(Literal::Boolean(true)),
+            Token {
+                token_type: TokenType::False,
+                ..
+            } => ParseTree::Literal(Literal::Boolean(false)),
+            Token {
+                token_type: TokenType::Nil,
+                ..
+            } => ParseTree::Literal(Literal::Nil),
+            Token {
+                token_type: TokenType::Identifier,
+                lexeme,
+                ..
+            } => ParseTree::Literal(Literal::Identifier(lexeme)),
+            Token {
+                token_type: TokenType::Super,
+                ..
+            } => ParseTree::Literal(Literal::Super),
+            Token {
+                token_type: TokenType::This,
+                ..
+            } => ParseTree::Literal(Literal::This),
+            Token {
+                token_type: TokenType::LeftParen,
+                ..
+            } =>  {
+                let lhs : ParseTree = self.parse_expression_within(0).wrap_err("in group expression")?;
+                self.lexer.expect(TokenType::RightParen,"expected right parenthesis").wrap_err("after open left parenthesis")?;
+                ParseTree::Cons(Operator::Group,vec![lhs])
+            },
+            Token {
+                token_type: TokenType::Bang|TokenType::Minus,
+                ..
+            } =>  {
+                let operator: Operator = match lhs.token_type {
+                    TokenType::Bang => Operator::Bang,
+                    TokenType::Minus => Operator::Minus,
+                    _ => unreachable!(""),
+                };
+                let ((),right_bp) = prefix_binding_power(operator);
+                let rhs = self.parse_expression_within(right_bp).wrap_err("in right hand side")?;
+                ParseTree::Cons(operator,vec![rhs])
+
+            },
+           token => return Err(miette::miette! {
+                    labels = vec![
+                        LabeledSpan::at(token.line as usize..token.line as usize + token.lexeme.len(), "here"),
+                    ],
+                    help = format!("Unexpected {token:?}"),
+                    "Expected an expression",
+                }
+                .with_source_code(self.input.to_string())),
+
+        };
+
+        loop {
+            let op = self.lexer.peek();
+            if op.map_or(false, |op| op.is_err()) {
+                return Err(self
+                    .lexer
+                    .next()
+                    .expect("checked Some above")
+                    .expect_err("checked Err above"))
+                .wrap_err("in place of expected operator");
+            }
+            let op = match op.map(|res| res.as_ref().expect("handled Err above")) {
+                None => break,
+
+                Some(Token {
+                    token_type:
+                        TokenType::RightParen
+                        | TokenType::Comma
+                        | TokenType::Semicolon
+                        | TokenType::RightBrace,
+                    ..
+                }) => break,
+                Some(Token {
+                    token_type: TokenType::LeftParen,
+                    ..
+                }) => Operator::Call,
+                Some(Token {
+                    token_type: TokenType::Dot,
+                    ..
+                }) => Operator::Field,
+                Some(Token {
+                    token_type: TokenType::Minus,
+                    ..
+                }) => Operator::Minus,
+                Some(Token {
+                    token_type: TokenType::Plus,
+                    ..
+                }) => Operator::Plus,
+                Some(Token {
+                    token_type: TokenType::Star,
+                    ..
+                }) => Operator::Star,
+                Some(Token {
+                    token_type: TokenType::BangEqual,
+                    ..
+                }) => Operator::BangEqual,
+                Some(Token {
+                    token_type: TokenType::EqualEqual,
+                    ..
+                }) => Operator::EqualEqual,
+                Some(Token {
+                    token_type: TokenType::LessEqual,
+                    ..
+                }) => Operator::LessEqual,
+                Some(Token {
+                    token_type: TokenType::GreaterEqual,
+                    ..
+                }) => Operator::GreaterEqual,
+                Some(Token {
+                    token_type: TokenType::Less,
+                    ..
+                }) => Operator::Less,
+                Some(Token {
+                    token_type: TokenType::Greater,
+                    ..
+                }) => Operator::Greater,
+                Some(Token {
+                    token_type: TokenType::Slash,
+                    ..
+                }) => Operator::Slash,
+                Some(Token {
+                    token_type: TokenType::And,
+                    ..
+                }) => Operator::And,
+                Some(Token {
+                    token_type: TokenType::Or,
+                    ..
+                }) => Operator::Or,
+
+                Some(token) => return Err(miette::miette! {
+                    labels = vec![
+                        LabeledSpan::at(token.line as usize..token.line as usize + token.lexeme.len(), "here"),
+                    ],
+                    help = format!("Unexpected {token:?}"),
+                    "Expected an infix operator",
+                }
+                .with_source_code(self.input.to_string())),
+            };
+
+            if let Some((l_bp, ())) = postfix_binding_power(op) {
+                if l_bp < min_bp {
+                    break;
+                }
+                self.lexer.next();
+
+                lhs = match op {
+                    Operator::Call => ParseTree::Call {
+                        callee: Box::new(lhs),
+                        arguments: self
+                            .parse_function_calls()
+                            .wrap_err("in function call arguments")?,
+                    },
+                    _ => ParseTree::Cons(op, vec![lhs]),
+                };
+                continue;
+            }
+
+            if let Some((l_bp, r_bp)) = infix_binding_power(op) {
+                if l_bp < min_bp {
+                    break;
+                }
+                self.lexer.next();
+
+                lhs = match op {
+                    _ => {
+                        let rhs = self
+                            .parse_expression_within(r_bp)
+                            .wrap_err_with(|| format!("on the right-hand side of {lhs} {op}"))?;
+                        ParseTree::Cons(op, vec![lhs, rhs])
+                    }
+                };
+                continue;
+            }
+
+            break;
+        }
+
+        Ok(lhs)
     }
 }
 
@@ -425,7 +625,7 @@ pub enum Literal<'de> {
     String(Cow<'de, str>),
     Number(f64),
     Nil,
-    Bool(bool),
+    Boolean(bool),
     Identifier(&'de str),
     Super,
     This,
@@ -443,7 +643,7 @@ impl fmt::Display for Literal<'_> {
                 }
             }
             Literal::Nil => write!(f, "nil"),
-            Literal::Bool(b) => write!(f, "{b:?}"),
+            Literal::Boolean(b) => write!(f, "{b:?}"),
             Literal::Identifier(i) => write!(f, "{i}"),
             Literal::Super => write!(f, "super"),
             Literal::This => write!(f, "this"),
