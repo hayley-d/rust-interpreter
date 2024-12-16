@@ -8,6 +8,8 @@ pub struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
+    /// Creates a new Paser with the provided input and attatches a Lexer initialized with the same
+    /// input.
     pub fn new(input: &'a str) -> Self {
         return Parser {
             input,
@@ -23,14 +25,19 @@ impl<'a> Parser<'a> {
         return self.parse_expression_within(0);
     }
 
-    // Parses a Code block {...}
+    /// Parses a code block starting with `{` Left Brace and ending with `}` right brace.
+    /// Will Error if any of the braces are missing or if parse_statement_within returns an error.
     pub fn parse_block(&mut self) -> Result<ParseTree<'a>, Error> {
         self.lexer.expect(TokenType::LeftBrace, "missing {")?;
+        // Parse the inside of the code block
         let block: ParseTree = self.parse_statement_within(0)?;
         self.lexer.expect(TokenType::RightBrace, "missing }")?;
         return Ok(block);
     }
 
+    /// Parses a function call.
+    /// Errors if the right parenthesis `)` is missing or if parse_expression_within returns an
+    /// error
     pub fn parse_function_calls(&mut self) -> Result<Vec<ParseTree<'a>>, Error> {
         let mut arguments: Vec<ParseTree> = Vec::new();
 
@@ -124,14 +131,222 @@ impl<'a> Parser<'a> {
                 return Ok(ParseTree::Cons(operator, vec![rhs]));
             }
             Token {
-                token_type: TokenType::This,
+                token_type: TokenType::For,
                 ..
-            } => ParseTree::Literal(Literal::This),
+            } => {
+                self.lexer
+                    .expect(TokenType::LeftParen, "missing (")
+                    .wrap_err("in for loop condition")?;
+
+                let init: ParseTree = self
+                    .parse_expression_within(0)
+                    .wrap_err("in init condition of the for loop")?;
+
+                self.lexer
+                    .expect(TokenType::Semicolon, "missing ;")
+                    .wrap_err("in for loop condition")?;
+
+                let condition: ParseTree = self
+                    .parse_expression_within(0)
+                    .wrap_err("in loop condition of for loop")?;
+
+                self.lexer
+                    .expect(TokenType::Semicolon, "missing ;")
+                    .wrap_err("in for loop condition")?;
+
+                let increment: ParseTree = self
+                    .parse_expression_within(0)
+                    .wrap_err("in incremental condition of the for loop")?;
+
+                self.lexer
+                    .expect(TokenType::RightParen, "missing )")
+                    .wrap_err("in for loop condition")?;
+
+                let code_block: ParseTree =
+                    self.parse_block().wrap_err("in body of the for loop")?;
+
+                return Ok(ParseTree::Cons(
+                    Operator::For,
+                    vec![init, condition, increment, code_block],
+                ));
+            }
+            Token {
+                token_type: TokenType::While,
+                ..
+            } => {
+                self.lexer
+                    .expect(TokenType::LeftParen, "missing (")
+                    .wrap_err("in while loop condition")?;
+
+                let condition: ParseTree = self
+                    .parse_expression_within(0)
+                    .wrap_err("in while loop condition")?;
+
+                self.lexer
+                    .expect(TokenType::RightParen, "missing )")
+                    .wrap_err("in while loop condition")?;
+
+                let code_block: ParseTree = self.parse_block().wrap_err("in while loop body")?;
+
+                return Ok(ParseTree::Cons(
+                    Operator::While,
+                    vec![condition, code_block],
+                ));
+            }
+            Token {
+                token_type: TokenType::Class,
+                ..
+            } => {
+                let token: Token = self
+                    .lexer
+                    .expect(TokenType::Identifier, "exected identifier")
+                    .wrap_err("in class name")?;
+
+                let identifier: ParseTree = ParseTree::Literal(Literal::Identifier(token.lexeme));
+
+                if lhs.token_type == TokenType::Var {
+                    self.lexer
+                        .expect(TokenType::Equal, "missing =")
+                        .wrap_err("in variable assignment");
+                }
+
+                let code_block: ParseTree = self.parse_block().wrap_err("in class definition")?;
+
+                return Ok(ParseTree::Cons(
+                    Operator::Class,
+                    vec![identifier, code_block],
+                ));
+            }
+            Token {
+                token_type: TokenType::Var,
+                ..
+            } => {
+                let token: Token = self
+                    .lexer
+                    .expect(TokenType::Identifier, "expected identifier")
+                    .wrap_err("in variable definition")?;
+                let identifier: ParseTree = ParseTree::Literal(Literal::Identifier(token.lexeme));
+                self.lexer
+                    .expect(TokenType::Equal, "missing =")
+                    .wrap_err("in variable assignment")?;
+                let expression: ParseTree = self
+                    .parse_expression_within(0)
+                    .wrap_err("in variable assignment expression")?;
+                return Ok(ParseTree::Cons(Operator::Var, vec![identifier, expression]));
+            }
+            Token {
+                token_type: TokenType::Fun,
+                ..
+            } => {
+                let token: Token = self
+                    .lexer
+                    .expect(TokenType::Identifier, "expected identifier")
+                    .wrap_err("in function declaration")?;
+                let name: &str = token.lexeme;
+                self.lexer
+                    .expect(TokenType::LeftParen, "missing (")
+                    .wrap_err("in parameter list of function {name}")?;
+                let identifier: Literal = Literal::Identifier(token.lexeme);
+                let mut params: Vec<Token> = Vec::new();
+                if matches!(
+                    self.lexer.peek(),
+                    Some(Ok(Token {
+                        token_type: TokenType::RightParen,
+                        ..
+                    }))
+                ) {
+                    // no params
+                } else {
+                    loop {
+                        let parameter: Token = self
+                            .lexer
+                            .expect(TokenType::Identifier, "unexpected token")
+                            .wrap_err_with(|| {
+                                format!("in parameter #{} of function {name}", params.len() + 1)
+                            })?;
+
+                        params.push(parameter);
+                        let token = self
+                            .lexer
+                            .expect_where(
+                                |token| {
+                                    matches!(
+                                        token.token_type,
+                                        TokenType::RightParen | TokenType::Comma
+                                    )
+                                },
+                                "continuing parameter list",
+                            )
+                            .wrap_err_with(|| format!("in parameter list of function {name}"))?;
+
+                        if token.token_type == TokenType::RightParen {
+                            break;
+                        }
+                    }
+                }
+
+                let code_block: ParseTree = self
+                    .parse_block()
+                    .wrap_err_with(|| format!("in body of function {name}"))?;
+                return Ok(ParseTree::Fun {
+                    name: identifier,
+                    parameters: params,
+                    body: Box::new(code_block),
+                });
+            }
+            Token {
+                token_type: TokenType::If,
+                ..
+            } => {
+                self.lexer
+                    .expect(TokenType::LeftParen, "missing (")
+                    .wrap_err("in if condition")?;
+
+                let condition: ParseTree = self
+                    .parse_expression_within(0)
+                    .wrap_err("in if condition")?;
+
+                self.lexer
+                    .expect(TokenType::RightParen, "missing )")
+                    .wrap_err("in if condition")?;
+
+                let code_block: ParseTree = self.parse_block().wrap_err("in body of if")?;
+
+                let mut else_block: Option<ParseTree> = None;
+
+                if matches!(
+                    self.lexer.peek(),
+                    Some(Ok(Token {
+                        token_type: TokenType::Else,
+                        ..
+                    }))
+                ) {
+                    self.lexer.next();
+                    else_block = Some(self.parse_block().wrap_err("in body of else")?);
+                }
+
+                return Ok(ParseTree::If {
+                    condition: Box::new(condition),
+                    yes: Box::new(code_block),
+                    no: else_block.map(Box::new),
+                });
+            }
+            token => {
+                return Err(miette::miette! {
+                    labels = vec![
+                        LabeledSpan::at(token.line as usize..token.line as usize+ token.lexeme.len(), "here"),
+                    ],
+                    help = format!("Unexpected {token:?}"),
+                    "Expected a statement",
+                }
+                .with_source_code(self.input.to_string()))
+            }
         };
 
         todo!()
     }
 
+    // Will stop as soon as it comes accross an operator with a lower bp than the min_bp
     pub fn parse_expression_within(&mut self, min_bp: u8) -> Result<ParseTree<'a>, Error> {
         todo!()
     }
@@ -291,14 +506,16 @@ impl fmt::Display for ParseTree<'_> {
     }
 }
 
+// This only has a right binding power since it handles unary operators
 fn prefix_binding_power(op: Operator) -> ((), u8) {
     match op {
         Operator::Print | Operator::Return => ((), 1),
         Operator::Bang | Operator::Minus => ((), 11),
-        _ => panic!("bad op: {:?}", op),
+        _ => panic!("bad operator: {:?}", op),
     }
 }
 
+// This only has a left binding power since it is postfix
 fn postfix_binding_power(op: Operator) -> Option<(u8, ())> {
     let res = match op {
         Operator::Call => (13, ()),
@@ -320,6 +537,7 @@ fn infix_binding_power(op: Operator) -> Option<(u8, u8)> {
         | Operator::GreaterEqual => (5, 6),
         Operator::Plus | Operator::Minus => (7, 8),
         Operator::Star | Operator::Slash => (9, 10),
+        // Left side of the `.` binds tighter than the right to give right associativity
         Operator::Field => (16, 15),
         _ => return None,
     };
