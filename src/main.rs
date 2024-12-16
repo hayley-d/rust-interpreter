@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 use miette::{Context, IntoDiagnostic};
-use rust_interpreter::{lex, Lexer};
+use rust_interpreter::{lex, parser, Lexer};
 use std::fs;
 use std::path::PathBuf;
 
@@ -59,7 +59,28 @@ fn main() -> miette::Result<()> {
                 std::process::exit(65);
             }
         }
-        _ => (),
+        Commands::Parse { filename } => {
+            let file_contents = fs::read_to_string(&filename)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("reading '{}' failed", filename.display()))?;
+
+            let parser = parser::Parser::new(&file_contents);
+            match parser.parse_expression() {
+                Ok(tt) => println!("{tt}"),
+                Err(e) => {
+                    eprintln!("{e:?}");
+                    std::process::exit(65);
+                }
+            }
+        }
+        Commands::Run { filename } => {
+            let file_contents = fs::read_to_string(&filename)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("reading '{}' failed", filename.display()))?;
+
+            let parser = parser::Parser::new(&file_contents);
+            println!("{}", parser.parse().unwrap());
+        }
     }
 
     Ok(())

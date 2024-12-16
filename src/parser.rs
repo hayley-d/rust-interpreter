@@ -17,7 +17,7 @@ impl<'a> Parser<'a> {
         };
     }
 
-    pub fn parser(mut self) -> Result<ParseTree<'a>, miette::Error> {
+    pub fn parse(mut self) -> Result<ParseTree<'a>, miette::Error> {
         return self.parse_statement_within(0);
     }
 
