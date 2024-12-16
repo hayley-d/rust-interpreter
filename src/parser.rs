@@ -207,7 +207,7 @@ impl<'a> Parser<'a> {
                 if lhs.token_type == TokenType::Var {
                     self.lexer
                         .expect(TokenType::Equal, "missing =")
-                        .wrap_err("in variable assignment");
+                        .wrap_err("in variable assignment")?;
                 }
 
                 let code_block: ParseTree = self.parse_block().wrap_err("in class definition")?;
@@ -343,7 +343,74 @@ impl<'a> Parser<'a> {
             }
         };
 
-        todo!()
+        loop {
+            let operator: Option<&Result<Token, Error>> = self.lexer.peek();
+            if operator.map_or(false, |op| op.is_err()) {
+                return Err(self
+                    .lexer
+                    .next()
+                    .expect("checked above")
+                    .expect_err("checked Err above"))
+                .wrap_err("in place of expected operator");
+            }
+
+            let operator: Operator = match operator
+                .map(|result| result.as_ref().expect("handled Err above"))
+            {
+                Some(Token {
+                    token_type: TokenType::LeftParen,
+                    ..
+                }) => Operator::Call,
+                Some(Token {
+                    token_type: TokenType::Dot,
+                    ..
+                }) => Operator::Field,
+                None => break,
+                Some(token) => return Err(miette::miette! {
+                    labels = vec![
+                        LabeledSpan::at(token.line as usize..token.line as usize + token.lexeme.len(), "here"),
+                    ],
+                    help = format!("Unexpected {token:?}"),
+                    "Expected an operator",
+                }
+                .with_source_code(self.input.to_string())),
+            };
+
+            if let Some((left_bp, ())) = postfix_binding_power(operator) {
+                if left_bp < min_bp {
+                    break;
+                }
+
+                self.lexer.next();
+
+                lhs = match operator {
+                    Operator::Call => ParseTree::Call {
+                        callee: Box::new(lhs),
+                        arguments: self
+                            .parse_function_calls()
+                            .wrap_err("in function call arguments")?,
+                    },
+                    _ => ParseTree::Cons(operator, vec![lhs]),
+                };
+                continue;
+            }
+
+            if let Some((left_bp, right_bp)) = infix_binding_power(operator) {
+                if left_bp < min_bp {
+                    break;
+                }
+                self.lexer.next();
+                let rhs: ParseTree = self
+                    .parse_expression_within(right_bp)
+                    .wrap_err_with(|| format!("on the right hand side of {lhs} {operator}"))?;
+                lhs = ParseTree::Cons(operator, vec![lhs, rhs]);
+                continue;
+            }
+
+            break;
+        }
+
+        return Ok(lhs);
     }
 
     // Will stop as soon as it comes accross an operator with a lower bp than the min_bp
